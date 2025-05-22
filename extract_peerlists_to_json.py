@@ -9,7 +9,8 @@ import os
 def uint32_to_ip(ip_int):
     """Convert uint32 to IP address string."""
     try:
-        ip_bytes = struct.pack('!L', ip_int)
+        ip_bytes = struct.pack('<L', ip_int)
+        #ip_bytes = struct.pack('!L', ip_int)
         return socket.inet_ntoa(ip_bytes)
     except Exception as e:
         print(f"Error converting IP {ip_int}: {e}")
@@ -22,9 +23,9 @@ def process_monero_tsv(input_file, output_file):
     # Initialize output structure
     output_data = {
         "header": {
-            "script_version": "2.0",
             "extraction_date": datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            "description": "Monero peer list extraction from TSV"
+            "description": "Monero peer list extraction from TSV",
+            "input_file": input_file
         },
         "peer_lists": []
     }
@@ -182,8 +183,8 @@ def process_monero_tsv(input_file, output_file):
                         peer_list_count += 1
                         
                         # Print progress
-                        if peer_list_count % 10 == 0 or peer_list_count < 5:
-                            print(f"Found peer list #{peer_list_count} from {src_ip} with {len(peer_list['peers'])} peers")
+                        #if peer_list_count % 1000 == 0 or peer_list_count < 5:
+                        #    print(f"Found peer list #{peer_list_count} from {src_ip} with {len(peer_list['peers'])} peers")
                 
                 except Exception as e:
                     print(f"Error processing line {line_count}: {e}")
@@ -208,7 +209,7 @@ if __name__ == "__main__":
     
     input_file = sys.argv[1]
     input_file_name = os.path.splitext(os.path.basename(input_file))[0]
-    output_file = f"peerlists/{input_file_name}_peer_lists.json"
+    output_file = f"data/peerlists/{input_file_name}_peer_lists.json"
     
     if not os.path.exists(input_file):
         print(f"Error: Input file '{input_file}' does not exist")
