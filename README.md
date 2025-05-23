@@ -42,6 +42,6 @@ python3 extract_peerlists_to_json.py data/tsv/<capture_file>.tsv
 ```
 
 ## ToDo
-[x] add initial peer list extraction and test results (matching with thesis results?)
-[] add Handshake to peer list extraction
-[] add script to extract general monero packet data
+- [x] add initial peer list extraction and test results (matching with thesis results?)
+- [ ] add Handshake to peer list extraction  
+- [ ] add script to extract general monero packet data
