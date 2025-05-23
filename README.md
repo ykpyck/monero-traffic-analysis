@@ -25,10 +25,10 @@ Continue with either running the convenience script (will process all pcapng fil
 ### Individual Commands 
 
 #### Peerlist Extraction
-First, tshark will filter all Timed Sync commands and retrieves all necessary data.
+First, tshark filters all Timed Sync commands and retrieves all necessary data.
 ```shell
 tshark -r data/pcapng/<capture_file>.pcapng \  
-  -Y "((monero.command == 1002) && (ip.dst == 192.168.2.128)) && (monero.return_code == 1)" \
+  -Y "((monero.command == 1002) && (ip.dst == <monero_host_IP>)) && (monero.return_code == 1)" \
   -T fields \
   -e frame.time_epoch -e ip.src \
   -e monero.payload.item.key -e monero.payload.item.type \
@@ -41,4 +41,7 @@ Second, a Python script will extract relevant peer list information and brings i
 python3 extract_peerlists_to_json.py data/tsv/<capture_file>.tsv
 ```
 
-tshark -r data/pcapng/capture_20250121_172717.pcapng -Y "((monero.command == 1002) && (ip.dst == 10.200.1.2)) && (monero.return_code == 1)" -T fields -e frame.time_epoch -e ip.src -e monero.payload.item.key -e monero.payload.item.type -e monero.payload.item.value.uint32 -e monero.payload.item.value.uint16 -e monero.payload.item.value.uint8 -e monero.payload.item.value.uint64 > capture_20250121_172717.tsv
+## ToDo
+[x] add initial peer list extraction and test results (matching with thesis results?)
+[] add Handshake to peer list extraction
+[] add script to extract general monero packet data
