@@ -17,13 +17,13 @@ for pcapng_file in data/pcapng/*.pcapng; do
     
     # Execute tshark command
     tshark -r "$pcapng_file" \
-        -Y "((monero.command == 1002) && (ip.dst == $name)) && (monero.return_code == 1)" \
+        -Y "((monero.command == 1001 || monero.command == 1002) && (ip.dst == 192.168.2.128)) && (monero.return_code == 1)" \
         -T fields \
-        -e frame.time_epoch -e ip.src \
+        -e frame.time_epoch -e ip.src -e monero.command \
         -e monero.payload.item.key -e monero.payload.item.type \
         -e monero.payload.item.value.uint32 -e monero.payload.item.value.uint16 \
         -e monero.payload.item.value.uint8 -e monero.payload.item.value.uint64 \
-        > "data/tsv/${capture_file}.tsv"
+        > "data/tsv/${capture_file}_peerlists.tsv"
     
     # Check if the command was successful
     if [ $? -eq 0 ]; then
@@ -45,7 +45,7 @@ for tsv_file in data/tsv/*tsv; do
 
     echo "Processing: $tsv_file.pcapng"
 
-    python3 extract_peerlists_to_json.py data/tsv/$tsv_file.tsv
+    python3 extract_peerlists_to_json.py data/tsv/${tsv_file}_peerlists.tsv
 
     if [ $? -eq 0 ]; then
         echo "Successfully processed: $tsv_file.tsv -> $tsv_file.json"

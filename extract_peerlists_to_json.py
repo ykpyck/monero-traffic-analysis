@@ -43,14 +43,15 @@ def process_monero_tsv(input_file, output_file):
                 try:
                     # Split line into main fields (tab-separated)
                     fields = line.strip().split('\t')
-                    if len(fields) < 5:
+                    if len(fields) < 6:
                         continue
                     
                     # Extract the basic fields
                     timestamp_str = fields[0]
                     src_ip = fields[1]
-                    keys = fields[2].split(',')
-                    types = fields[3].split(',')
+                    command = fields[2]
+                    keys = fields[3].split(',')
+                    types = fields[4].split(',')
                     
                     # Skip if not a peer list
                     if 'local_peerlist_new' not in keys:
@@ -58,10 +59,10 @@ def process_monero_tsv(input_file, output_file):
                     
                     # Extract value arrays
                     values = {
-                        '6': fields[4].split(',') if len(fields) > 4 else [],  # uint32
-                        '7': fields[5].split(',') if len(fields) > 5 else [],  # uint16
-                        '8': fields[6].split(',') if len(fields) > 6 else [],  # uint8
-                        '5': fields[7].split(',') if len(fields) > 7 else [],  # uint64
+                        '6': fields[5].split(',') if len(fields) > 4 else [],  # uint32
+                        '7': fields[6].split(',') if len(fields) > 5 else [],  # uint16
+                        '8': fields[7].split(',') if len(fields) > 6 else [],  # uint8
+                        '5': fields[8].split(',') if len(fields) > 7 else [],  # uint64
                     }
                     
                     # Convert timestamp
@@ -72,6 +73,7 @@ def process_monero_tsv(input_file, output_file):
                     peer_list = {
                         "source_ip": src_ip,
                         "timestamp": formatted_time,
+                        "command": command,
                         "peers": []
                     }
                     
@@ -125,7 +127,7 @@ def process_monero_tsv(input_file, output_file):
                                 value = values[field_type][type_counters[field_type]]
                                 type_counters[field_type] += 1
                                 
-                                # Handle special fields for peers
+                                # Handle known fields for peers
                                 if current_peer is not None:
                                     if key == 'm_ip' and field_type == '6':
                                         try:
@@ -166,10 +168,13 @@ def process_monero_tsv(input_file, output_file):
                                     # Store metadata - convert number types
                                     if field_type in ['6', '7', '8']:
                                         try:
+                                            #metadata[key] = int(value)
                                             peer_list[key] = int(value)
                                         except:
+                                            #metadata[key] = value
                                             peer_list[key] = value
                                     else:
+                                        #metadata[key] = value
                                         peer_list[key] = value
                     
                     # Add the final peer if not already added
