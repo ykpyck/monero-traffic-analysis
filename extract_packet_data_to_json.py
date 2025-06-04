@@ -192,24 +192,33 @@ def process_monero_tsv(input_file, output_file):
                 try:
                     # Split line into main fields (tab-separated)
                     fields = line.strip().split('\t')
-                    if len(fields) < 5:
+                    if len(fields) < 6:
                         continue
                     
                     # Extract the basic fields
                     timestamp_str = fields[0]
                     src_ip = fields[1]
                     command = fields[2]
-                    keys = fields[3].split(',')
-                    types = fields[4].split(',')
+                    flags = fields[3]
+                    tcp_segment_count = fields[4]
+                    tcp_length = fields[5]
+                    src_port = fields[6]
+
+                    if len(fields) < 9:
+                        keys = []
+                        types = []
+                    else:
+                        keys = fields[7].split(',')
+                        types = fields[8].split(',')
                     
                     values = {}
                     field_mapping = {
-                        '5': 5,   # uint64
-                        '6': 6,   # uint32  
-                        '7': 7,   # uint16
-                        '8': 8,   # uint8
-                        '10': 9,  # string
-                        '11': 5,  # boolean (sent as uint64)
+                        '5': 9,   # uint64
+                        '6': 10,   # uint32  
+                        '7': 11,   # uint16
+                        '8': 12,   # uint8
+                        '10': 13,  # string
+                        '11': 9,  # boolean (sent as uint64)
                     }
 
                     for type_id, field_idx in field_mapping.items():
@@ -221,12 +230,16 @@ def process_monero_tsv(input_file, output_file):
                     
                     # Convert timestamp
                     timestamp_float = float(timestamp_str)
-                    formatted_time = datetime.datetime.fromtimestamp(timestamp_float).strftime('%Y-%m-%d %H:%M:%S')
+                    formatted_time = datetime.datetime.fromtimestamp(timestamp_float).strftime('%Y-%m-%d %H:%M:%S.%f')
                     
                     packet = {
                         "source_ip": src_ip,
+                        "source_port": src_port,
                         "timestamp": formatted_time,
                         "command": command,
+                        "monero_flags": flags,
+                        "tcp_segments": tcp_segment_count,
+                        "tcp_length": tcp_length,
                         "local_peerlist_new": None,
                         "node_data": None,
                         "payload_data": None

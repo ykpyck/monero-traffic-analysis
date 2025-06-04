@@ -1,37 +1,45 @@
 #!/bin/bash
 
 read -p "Enter the Monero host IP: " name
+read -p "Process .pcapng files? (y/n): " process_pcapng
 
 # Process each .pcapng file in the data/pcapng directory
-for pcapng_file in data/pcapng/*.pcapng; do
-    # Check if files exist (handles case where no .pcapng files are found)
-    if [ ! -f "$pcapng_file" ]; then
-        echo "No .pcapng files found in data/pcapng/"
-        exit 1
-    fi
-    
-    # Extract filename without path and extension
-    capture_file=$(basename "$pcapng_file" .pcapng)
-    
-    echo "Processing: $capture_file.pcapng"
-    
-    # Execute tshark command
-    tshark -r "$pcapng_file" \
-        -Y "((monero.command == 1001 || monero.command == 1002) && (ip.dst == 192.168.2.128)) && (monero.return_code == 1)" \
-        -T fields \
-        -e frame.time_epoch -e ip.src -e monero.command \
-        -e monero.payload.item.key -e monero.payload.item.type \
-        -e monero.payload.item.value.uint32 -e monero.payload.item.value.uint16 \
-        -e monero.payload.item.value.uint8 -e monero.payload.item.value.uint64 \
-        > "data/tsv/${capture_file}_peerlists.tsv"
-    
-    # Check if the command was successful
-    if [ $? -eq 0 ]; then
-        echo "Successfully processed: $capture_file.pcapng -> $capture_file.tsv"
-    else
-        echo "Error processing: $capture_file.pcapng"
-    fi
-done
+if [[ $process_pcapng =~ ^[Yy]$ ]]; then
+    for pcapng_file in data/pcapng/*.pcapng; do
+        # Check if files exist (handles case where no .pcapng files are found)
+        if [ ! -f "$pcapng_file" ]; then
+            echo "No .pcapng files found in data/pcapng/"
+            exit 1
+        fi
+
+        # Extract filename without path and extension
+        capture_file=$(basename "$pcapng_file" .pcapng)
+
+        echo "Processing: $capture_file.pcapng"
+
+        # Execute tshark command
+        tshark -r "$pcapng_file" \
+            -Y "(monero) && (ip.dst==$name)" \
+            -T fields \
+            -e frame.time_epoch -e ip.src \
+            -e monero.command -e monero.flags \
+            -e tcp.segment.count -e tcp.len -e tcp.srcport \
+            -e monero.payload.item.key -e monero.payload.item.type \
+            -e monero.payload.item.value.uint64 -e monero.payload.item.value.uint32 \
+            -e monero.payload.item.value.uint16 \
+            -e monero.payload.item.value.uint8 -e monero.payload.item.value.string \
+            > "data/tsv/${capture_file}_packets.tsv"
+
+        # Check if the command was successful
+        if [ $? -eq 0 ]; then
+            echo "Successfully processed: $capture_file.pcapng -> $capture_file.tsv"
+        else
+            echo "Error processing: $capture_file.pcapng"
+        fi
+    done
+else
+    echo "Skipping pcapng processing."
+fi
 
 echo "Processing pcapng files complete."
 
@@ -45,7 +53,7 @@ for tsv_file in data/tsv/*tsv; do
 
     echo "Processing: $tsv_file.pcapng"
 
-    python3 extract_peerlists_to_json.py data/tsv/${tsv_file}_peerlists.tsv
+    python3 extract_packet_data_to_json.py data/tsv/${tsv_file}.tsv
 
     if [ $? -eq 0 ]; then
         echo "Successfully processed: $tsv_file.tsv -> $tsv_file.json"
