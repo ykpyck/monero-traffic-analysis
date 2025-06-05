@@ -1,41 +1,79 @@
 #!/bin/bash
 
-read -p "Enter the Monero host IP: " name
 read -p "Process .pcapng files? (y/n): " process_pcapng
 
-# Process each .pcapng file in the data/pcapng directory
 if [[ $process_pcapng =~ ^[Yy]$ ]]; then
-    for pcapng_file in data/pcapng/*.pcapng; do
-        # Check if files exist (handles case where no .pcapng files are found)
-        if [ ! -f "$pcapng_file" ]; then
-            echo "No .pcapng files found in data/pcapng/"
+    # Check if data/pcapng directory exists
+    if [ ! -d "data/pcapng" ]; then
+        echo "Directory data/pcapng does not exist"
+        exit 1
+    fi
+    
+    # Loop through each subdirectory in data/pcapng
+    for subdir in data/pcapng/*/; do
+        # Check if subdirectories exist
+        if [ ! -d "$subdir" ]; then
+            echo "No subdirectories found in data/pcapng/"
             exit 1
         fi
+        
+        # Extract subdirectory name
+        subdir_name=$(basename "$subdir")
 
-        # Extract filename without path and extension
-        capture_file=$(basename "$pcapng_file" .pcapng)
-
-        echo "Processing: $capture_file.pcapng"
-
-        # Execute tshark command
-        tshark -r "$pcapng_file" \
-            -Y "(monero) && (ip.dst==$name)" \
-            -T fields \
-            -e frame.time_epoch -e ip.src \
-            -e monero.command -e monero.flags \
-            -e tcp.segment.count -e tcp.len -e tcp.srcport \
-            -e monero.payload.item.key -e monero.payload.item.type \
-            -e monero.payload.item.value.uint64 -e monero.payload.item.value.uint32 \
-            -e monero.payload.item.value.uint16 \
-            -e monero.payload.item.value.uint8 -e monero.payload.item.value.string \
-            > "data/tsv/${capture_file}_packets.tsv"
-
-        # Check if the command was successful
-        if [ $? -eq 0 ]; then
-            echo "Successfully processed: $capture_file.pcapng -> $capture_file.tsv"
-        else
-            echo "Error processing: $capture_file.pcapng"
+        if [ "$subdir_name" = "archive" ]; then
+            echo "Skipping archive directory: $subdir_name"
+            continue
         fi
+
+        echo "Found subdirectory: $subdir_name"
+        
+        # Ask for IP for this specific subdirectory
+        read -p "Enter the Monero host IP for $subdir_name: " name
+        
+        # Process each .pcapng file in this subdirectory
+        pcapng_found=false
+        for pcapng_file in "$subdir"*.pcapng; do
+            # Check if files exist (handles case where no .pcapng files are found)
+            if [ ! -f "$pcapng_file" ]; then
+                continue
+            fi
+            
+            pcapng_found=true
+            
+            # Extract filename without path and extension
+            capture_file=$(basename "$pcapng_file" .pcapng)
+            echo "Processing: $subdir_name/$capture_file.pcapng"
+            
+            # Create output directory structure if it doesn't exist
+            mkdir -p "data/tsv/$subdir_name"
+            
+            # Execute tshark command
+            tshark -r "$pcapng_file" \
+                -Y "(monero) && (ip.dst==$name)" \
+                -T fields \
+                -e frame.time_epoch -e ip.src \
+                -e monero.command -e monero.flags \
+                -e tcp.segment.count -e tcp.len -e tcp.srcport \
+                -e monero.payload.item.key -e monero.payload.item.type \
+                -e monero.payload.item.value.uint64 -e monero.payload.item.value.uint32 \
+                -e monero.payload.item.value.uint16 \
+                -e monero.payload.item.value.uint8 -e monero.payload.item.value.string \
+                > "data/tsv/$subdir_name/${capture_file}_packets.tsv"
+            
+            # Check if the command was successful
+            if [ $? -eq 0 ]; then
+                echo "Successfully processed: $subdir_name/$capture_file.pcapng -> $subdir_name/${capture_file}_packets.tsv"
+            else
+                echo "Error processing: $subdir_name/$capture_file.pcapng"
+            fi
+        done
+        
+        if [ "$pcapng_found" = false ]; then
+            echo "No .pcapng files found in $subdir_name/"
+        fi
+        
+        echo "Finished processing subdirectory: $subdir_name"
+        echo "---"
     done
 else
     echo "Skipping pcapng processing."
@@ -43,23 +81,53 @@ fi
 
 echo "Processing pcapng files complete."
 
-for tsv_file in data/tsv/*tsv; do 
-    if [ ! -f "$tsv_file" ]; then
-        echo "No .tsv files found in data/tsv/"
-        exit 1
+if [ ! -d "data/tsv" ]; then
+    echo "Directory data/tsv does not exist"
+    exit 1
+fi
+
+# Process TSV files in subdirectories
+tsv_found=false
+for subdir in data/tsv/*/; do
+    # Check if subdirectories exist
+    if [ ! -d "$subdir" ]; then
+        continue
     fi
+    
+    # Extract subdirectory name
+    subdir_name=$(basename "$subdir")
+    echo "Processing subdirectory: $subdir_name"
+    
+    # Process each .tsv file in this subdirectory
+    subdir_tsv_found=false
+    for tsv_file in "$subdir"*.tsv; do
+        if [ ! -f "$tsv_file" ]; then
+            continue
+        fi
+        
+        tsv_found=true
+        subdir_tsv_found=true
+        
+        # Extract filename without path and extension
+        tsv_basename=$(basename "$tsv_file" .tsv)
+        echo "Processing: $subdir_name/$tsv_basename.tsv"
+        
+        mkdir -p "data/packets/$subdir_name"
 
-    tsv_file=$(basename "$tsv_file" .tsv)
-
-    echo "Processing: $tsv_file.pcapng"
-
-    python3 extract_packet_data_to_json.py data/tsv/${tsv_file}.tsv
-
-    if [ $? -eq 0 ]; then
-        echo "Successfully processed: $tsv_file.tsv -> $tsv_file.json"
-    else
-        echo "Error processing: $tsv_file.tsv"
+        # Call Python script with full path
+        python3 extract_packet_data_to_json.py "$tsv_file" "data/packets/$subdir_name/${tsv_basename}.json"
+        
+        if [ $? -eq 0 ]; then
+            echo "Successfully processed: $subdir_name/$tsv_basename.tsv -> $subdir_name/$tsv_basename.json"
+        else
+            echo "Error processing: $subdir_name/$tsv_basename.tsv"
+        fi
+    done
+    
+    if [ "$subdir_tsv_found" = false ]; then
+        echo "No .tsv files found in $subdir_name/"
     fi
+    
+    echo "Finished processing subdirectory: $subdir_name"
+    echo "---"
 done
-
-echo "Successfully extracted all peer lists!"

@@ -309,13 +309,13 @@ def process_monero_tsv(input_file, output_file):
         print(f"Error processing file: {e}")
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python3 extract_monero_peers.py input_file.tsv [output_file.json]")
+    if len(sys.argv) < 3:
+        print("Usage: python3 extract_monero_peers.py input_file.tsv output_file.json")
         sys.exit(1)
     
     input_file = sys.argv[1]
     input_file_name = os.path.splitext(os.path.basename(input_file))[0]
-    output_file = f"data/packets/{input_file_name}_packets.json"
+    output_file = sys.argv[2]
     
     if not os.path.exists(input_file):
         print(f"Error: Input file '{input_file}' does not exist")
