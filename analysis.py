@@ -20,9 +20,9 @@ def set_plt_latex_format():
     plt.rcParams.update({
         "font.size": 12,          # Base font size
         "axes.titlesize": 12,     # Title size
-        "axes.labelsize": 12,     # Axis label size
-        "xtick.labelsize": 12,    # X-tick label size
-        "ytick.labelsize": 12,    # Y-tick label size
+        "axes.labelsize": 10,     # Axis label size
+        "xtick.labelsize": 10,    # X-tick label size
+        "ytick.labelsize": 10,    # Y-tick label size
         "legend.fontsize": 12,    # Legend font size
         "figure.titlesize": 12,    # Figure title size
         "text.usetex": True,
@@ -154,12 +154,14 @@ def analyze_ts_latency(peer_packets_df, result_df):
     plt.axvline(np.percentile(all_conn_avgs, 95), color='green', linestyle=':', label='95th')
     plt.axvline(np.percentile(all_conn_avgs, 75), color='red', linestyle=':', label='75th')
     outlier_count = sum(x > 180 for x in all_conn_avgs)
-    plt.text(0.95, 0.95, f'{outlier_count} outliers $>$ 180', 
+    plt.text(0.95, 0.45, f'{outlier_count} outliers $>$ 180', fontsize=10,
              transform=plt.gca().transAxes, ha='right', va='top',
              bbox=dict(boxstyle='round,pad=0.3', facecolor='lightgray', alpha=0.7))
     plt.xlabel(f'Latency (ms)')
+    plt.xticks([60,90,120,150])
     plt.ylabel(f'Count (log scale)')
-    plt.legend()
+    plt.legend(fontsize=10)
+    plt.tight_layout(pad=0.2)
     plt.savefig('results/graphs/ts_latency_dist.pdf')
     print(f"\nTimed Sync Latency Analysis:")
     print(f"Averaged over {len(all_conn_avgs)} individual connections: {np.mean(all_conn_avgs)}")
