@@ -15,8 +15,11 @@ We assume a standard Monero setup behind port 18080.
 ```shell
 dumpcap -i <interface> -f "port 18080" -b duration:<time_in_seconds> -b files:<n_files> -w <output_file>.pcapng
 ```
-e.g. a capture for 1 day (rotates to create 10 files to avoid overly large files):
-``dumpcap -i eth0 -f "port 18080" -b duration:86400 -b files:10 -w monero_capture.pcapng``
+e.g. a capture for 1 day (rotates to create 12 files to avoid overly large files):
+``dumpcap -i eth0 -f "port 18080" -a duration:86400 -b duration:7200 -b files:12 -w capture.pcapng``
+
+## Convenience Script
+Using the convenience script 
 
 ## File Preprocessing
 If not directly saved, load all capture files directly to the repo's pcapng folder.
