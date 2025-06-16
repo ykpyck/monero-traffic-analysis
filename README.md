@@ -46,7 +46,11 @@ python3 extract_packet_data_to_json.py data/tsv/<capture_file>_packets.tsv
 
 # Current Testing Command
 ```shell
-
+tshark -r data/pcapng/ams/20250603-ams_24_hour_capture_00004_20250603143550.pcapng \
+ -Y "tcp.len == 8 && tcp.payload contains 01:21:01:01:01:01:01:01" \
+ -T fields \
+ -e ip.src \
+> data/tsv/signature_only_ips.tsv
 ```
 
 #### Monero Signature Only Extraction
@@ -54,9 +58,8 @@ python3 extract_packet_data_to_json.py data/tsv/<capture_file>_packets.tsv
 tshark -r data/pcapng/<capture_file>.pcapng \
  -Y "tcp.len == 8 && tcp.payload contains 01:21:01:01:01:01:01:01" \
  -T fields \
- -e frame.time_epoch -e ip.src -e ip.dst \
- -e tcp.len -e tcp.payload -e tcp.srcport \
-> data/tsv/<capture_file>.tsv
+ -e ip.src \
+| sort -u >> data/results/signature_only_ips.csv
 ```
 
 ## ToDo
@@ -83,3 +86,11 @@ tshark -r data/pcapng/<capture_file>.pcapng \
 - [o] last_seen timestamp
 - [o] support_flag not set
 - [ ] 
+
+# GeoLite2 Database
+https://github.com/P3TERX/GeoLite.mmdb?tab=readme-ov-file
+https://www.maxmind.com/en/geolite2/eula
+
+# banlist
+https://gist.github.com/Rucknium/76edd249c363b9ecf2517db4fab42e88
+https://github.com/Boog900/monero-ban-list/blob/main/ban_list.txt

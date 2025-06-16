@@ -1,16 +1,25 @@
 #!/bin/bash
 
+if [[ -f .env ]]; then
+    set -a  # automatically export all variables
+    source .env
+    set +a  # turn off automatic export
+fi
+
 read -p "Process .pcapng files? (y/n): " process_pcapng
 
 if [[ $process_pcapng =~ ^[Yy]$ ]]; then
     # Check if data/pcapng directory exists
-    if [ ! -d "data/pcapng" ]; then
+    # /media/kopy/Transcend/monero_pcap/paper_w-banlist
+    # if [ ! -d "data/pcapng" ]; then
+    if [ ! -d "/media/kopy/Transcend/monero_pcap/paper_wo-banlist" ]; then
         echo "Directory data/pcapng does not exist"
         exit 1
     fi
     
     # Loop through each subdirectory in data/pcapng
-    for subdir in data/pcapng/*/; do
+    #for subdir in data/pcapng/*/; do
+    for subdir in /media/kopy/Transcend/monero_pcap/paper_wo-banlist/*/; do
         # Check if subdirectories exist
         if [ ! -d "$subdir" ]; then
             echo "No subdirectories found in data/pcapng/"
@@ -20,15 +29,28 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
         # Extract subdirectory name
         subdir_name=$(basename "$subdir")
 
-        if [ "$subdir_name" = "archive" ]; then
+        #if [ "$subdir_name" = "archive" ]; then
+        if [[ "$subdir_name" =~ ^(syd|archive|sgp|sfo)$ ]]; then
             echo "Skipping archive directory: $subdir_name"
             continue
         fi
 
         echo "Found subdirectory: $subdir_name"
         
-        # Ask for IP for this specific subdirectory
-        read -p "Enter the Monero host IP for $subdir_name: " name
+        var_name="$subdir_name"
+
+        ip_value="${!var_name}"
+
+        if [[ -n "$ip_value" ]]; then
+            echo "Using IP from .env file for $subdir_name: $ip_value"
+            name="$ip_value"
+        else
+            echo "No IP found in .env file for $subdir_name"
+            # Ask for IP for this specific subdirectory
+            read -p "Enter the Monero host IP for $subdir_name: " name
+        fi
+
+        echo "Selected IP: $name"
         
         # Process each .pcapng file in this subdirectory
         pcapng_found=false
@@ -46,6 +68,14 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
             
             # Create output directory structure if it doesn't exist
             mkdir -p "data/tsv/$subdir_name"
+
+            mkdir -p "results"
+
+            #tshark -r "$pcapng_file" \
+            # -Y "tcp.len == 8 && tcp.payload contains 01:21:01:01:01:01:01:01" \
+            # -T fields \
+            # -e ip.src \
+            #| sort -u >> data/results/signature_only_ips.csv
             
             # Execute tshark command
             tshark -r "$pcapng_file" \
@@ -131,3 +161,7 @@ for subdir in data/tsv/*/; do
     echo "Finished processing subdirectory: $subdir_name"
     echo "---"
 done
+
+# Initiate final analysis script 
+echo "Final analysis initiated..."
+python analysis.py
