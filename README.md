@@ -73,22 +73,29 @@ tshark -r data/pcapng/<capture_file>.pcapng \
 
 ## Goal Metrics
 ### Peer Lists
-- [o] Similarity of individual peer lists 
-- [x] Similarity of total unique peers sent
-- [o] Peer popularity based on peer list appearance 
-- [o] (Network Analysis based on Popularity Topology?)
-- [ ] 
+- [] Similarity of all individual peer lists
+- [] Similarity of all individual peer lists excluding self comparison
+- [] Similarity of total unique peers sent
+- [] Peer list stats: number of peer lists, peers, unique peers
+- [] Peer popularity based on peer list appearance 
+- [] (Network Analysis based on Popularity Topology?)
+- [] 
 ### Packet Fragmentation
-- [o] Monero signature only in a single TCP packet
-- [ ] 
+- [] Monero signature only in a single TCP packet
+- [] 
 ### Command Sequence
-- [x] measure timed_sync latency
-- [x] measure Pings
-- [ ] 
-### Packet Structure
-- [o] last_seen timestamp
-- [o] support_flag not set
-- [ ] 
+- [] timed sync frequency per connection
+- [] pings per connection
+- [] 
+### Evident Deviations
+- [result_df['has_support_flags']] last_seen timestamp
+- [] support_flag not set
+- [] 
+### Node Attributes
+- [result_df['unique_my_ports']] my_ports
+- [result_df['unique_peer_ids']] unique_peer_ids
+- [result_df[f'peer_id_cluster_{node}']] peer_id_cluster (shared peer IDs among distinct IPs)
+- [result_df['unique_rpc_ports']] unique_rpc_ports
 
 # GeoLite2 Database
 https://github.com/P3TERX/GeoLite.mmdb?tab=readme-ov-file
