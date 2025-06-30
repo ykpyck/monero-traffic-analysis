@@ -198,27 +198,29 @@ def process_monero_tsv(input_file, output_file):
                     # Extract the basic fields
                     timestamp_str = fields[0]
                     src_ip = fields[1]
-                    command = fields[2]
-                    flags = fields[3]
-                    tcp_segment_count = fields[4]
-                    tcp_length = fields[5]
-                    src_port = fields[6]
+                    dst_ip = fields[2]
+                    command = fields[3]
+                    flags = fields[4]
+                    tcp_segment_count = fields[5]
+                    tcp_length = fields[6]
+                    src_port = fields[7]
+                    dst_port = fields[8]
 
-                    if len(fields) < 9:
+                    if len(fields) < 11:
                         keys = []
                         types = []
                     else:
-                        keys = fields[7].split(',')
-                        types = fields[8].split(',')
+                        keys = fields[9].split(',')
+                        types = fields[10].split(',')
                     
                     values = {}
                     field_mapping = {
-                        '5': 9,   # uint64
-                        '6': 10,   # uint32  
-                        '7': 11,   # uint16
-                        '8': 12,   # uint8
-                        '10': 13,  # string
-                        '11': 9,  # boolean (sent as uint64)
+                        '5': 11,   # uint64
+                        '6': 12,   # uint32  
+                        '7': 13,   # uint16
+                        '8': 14,   # uint8
+                        '10': 15,  # string
+                        '11': 11,  # boolean (sent as uint64)
                     }
 
                     for type_id, field_idx in field_mapping.items():
@@ -235,6 +237,8 @@ def process_monero_tsv(input_file, output_file):
                     packet = {
                         "source_ip": src_ip,
                         "source_port": src_port,
+                        "dst_ip": dst_ip,
+                        "dst_port": dst_port,
                         "timestamp": formatted_time,
                         "command": command,
                         "monero_flags": flags,
@@ -277,7 +281,6 @@ def process_monero_tsv(input_file, output_file):
                         elif section_name == 'payload_data':
                             packet["payload_data"] = process_payload_data(keys, types, values, type_counters, start_pos + 1, end_pos)
 
-                    
                     packet_count += 1
                     if packet["local_peerlist_new"]:
                         peer_list_count += 1

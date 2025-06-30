@@ -30,7 +30,7 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
         subdir_name=$(basename "$subdir")
 
         #if [ "$subdir_name" = "archive" ]; then
-        if [[ "$subdir_name" =~ ^(syd|archive|sgp|sfo)$ ]]; then
+        if [[ "$subdir_name" =~ ^(syd|archive|sgp|sfo|blr)$ ]]; then
             echo "Skipping archive directory: $subdir_name"
             continue
         fi
@@ -78,12 +78,13 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
             #| sort -u >> data/results/signature_only_ips.csv
             
             # Execute tshark command
+            #                -Y "(monero) && (ip.dst==$name)" \
             tshark -r "$pcapng_file" \
-                -Y "(monero) && (ip.dst==$name)" \
+                -Y "(monero)" \
                 -T fields \
-                -e frame.time_epoch -e ip.src \
+                -e frame.time_epoch -e ip.src -e ip.dst \
                 -e monero.command -e monero.flags \
-                -e tcp.segment.count -e tcp.len -e tcp.srcport \
+                -e tcp.segment.count -e tcp.len -e tcp.srcport -e tcp.dstport \
                 -e monero.payload.item.key -e monero.payload.item.type \
                 -e monero.payload.item.value.uint64 -e monero.payload.item.value.uint32 \
                 -e monero.payload.item.value.uint16 \
@@ -164,4 +165,4 @@ done
 
 # Initiate final analysis script 
 echo "Final analysis initiated..."
-python analysis.py
+#python analysis.py
