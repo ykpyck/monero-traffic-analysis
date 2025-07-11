@@ -12,14 +12,16 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
     # Check if data/pcapng directory exists
     # /media/kopy/Transcend/monero_pcap/paper_w-banlist
     # if [ ! -d "data/pcapng" ]; then
-    if [ ! -d "/media/kopy/Transcend/monero_pcap/paper_wo-banlist" ]; then
+    #if [ ! -d "/media/kopy/Transcend/monero_pcap/paper_wo-banlist" ]; then
+    if [ ! -d "/home/ykpyck/Data/monero_pcap/wo-banlist" ]; then
         echo "Directory data/pcapng does not exist"
         exit 1
     fi
     
     # Loop through each subdirectory in data/pcapng
     #for subdir in data/pcapng/*/; do
-    for subdir in /media/kopy/Transcend/monero_pcap/paper_wo-banlist/*/; do
+    #for subdir in /media/kopy/Transcend/monero_pcap/paper_wo-banlist/*/; do
+    for subdir in /home/ykpyck/Data/monero_pcap/wo-banlist/*/; do
         # Check if subdirectories exist
         if [ ! -d "$subdir" ]; then
             echo "No subdirectories found in data/pcapng/"
