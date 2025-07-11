@@ -65,6 +65,10 @@ tshark -r data/pcapng/<capture_file>.pcapng \
 | sort -u >> data/results/signature_only_ips.csv
 ```
 
+tshark -r "/media/kopy/Transcend/monero_pcap/paper_wo-banlist/ams/20250602-ams_24_hour_capture_00006_20250602164641.pcapng" \
+ -Y "tcp.len == 8 && tcp.payload contains 01:21:01:01:01:01:01:01" \
+ -T fields -e ip.src | sort -u >> results/signature_only_ips.csv
+
 ## ToDo
 - [ ] visualize command sequence patterns
 - [ ] monero signautre only statistics

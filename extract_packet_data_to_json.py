@@ -192,35 +192,36 @@ def process_monero_tsv(input_file, output_file):
                 try:
                     # Split line into main fields (tab-separated)
                     fields = line.strip().split('\t')
-                    if len(fields) < 6:
+                    if len(fields) < 7:
                         continue
                     
                     # Extract the basic fields
-                    timestamp_str = fields[0]
-                    src_ip = fields[1]
-                    dst_ip = fields[2]
-                    command = fields[3]
-                    flags = fields[4]
-                    tcp_segment_count = fields[5]
-                    tcp_length = fields[6]
-                    src_port = fields[7]
-                    dst_port = fields[8]
+                    frame_number = fields[0]
+                    timestamp_str = fields[1]
+                    src_ip = fields[2]
+                    dst_ip = fields[3]
+                    command = fields[4]
+                    flags = fields[5]
+                    tcp_segment_count = fields[6]
+                    tcp_length = fields[7]
+                    src_port = fields[8]
+                    dst_port = fields[9]
 
-                    if len(fields) < 11:
+                    if len(fields) < 13:
                         keys = []
                         types = []
                     else:
-                        keys = fields[9].split(',')
-                        types = fields[10].split(',')
+                        keys = fields[10].split(',')
+                        types = fields[11].split(',')
                     
                     values = {}
                     field_mapping = {
-                        '5': 11,   # uint64
-                        '6': 12,   # uint32  
-                        '7': 13,   # uint16
-                        '8': 14,   # uint8
-                        '10': 15,  # string
-                        '11': 11,  # boolean (sent as uint64)
+                        '5': 12,   # uint64
+                        '6': 13,   # uint32  
+                        '7': 14,   # uint16
+                        '8': 15,   # uint8
+                        '10': 16,  # string
+                        '11': 12,  # boolean (sent as uint64)
                     }
 
                     for type_id, field_idx in field_mapping.items():
@@ -235,6 +236,7 @@ def process_monero_tsv(input_file, output_file):
                     formatted_time = datetime.datetime.fromtimestamp(timestamp_float).strftime('%Y-%m-%d %H:%M:%S.%f')
                     
                     packet = {
+                        "frame_number": frame_number,
                         "source_ip": src_ip,
                         "source_port": src_port,
                         "dst_ip": dst_ip,
