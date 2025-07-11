@@ -77,7 +77,22 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
              -e ip.src \
             | sort -u >> results/signature_only_ips.csv
 
+            #tshark -r "$pcapng_file" \
+            #    -Y "(monero)" \
+            #    -T fields \
+            #    -e frame.number -e frame.time_epoch -e ip.src -e ip.dst \
+            #    -e monero.command -e monero.flags \
+            #    -e tcp.segment.count -e tcp.len -e tcp.srcport -e tcp.dstport \
+            #    -e monero.payload.item.key -e monero.payload.item.type \
+            #    -e monero.payload.item.value.uint64 -e monero.payload.item.value.uint32 \
+            #    -e monero.payload.item.value.uint16 \
+            #    -e monero.payload.item.value.uint8 -e monero.payload.item.value.string \
+            #    > "data/tsv/$subdir_name/${capture_file}_packets.tsv"
+            
+            # Execute tshark command
+            #                -Y "(monero) && (ip.dst==$name)" \
             tshark -r "$pcapng_file" \
+                -o "monero.desegment:True" \
                 -Y "(monero)" \
                 -T fields \
                 -e frame.number -e frame.time_epoch -e ip.src -e ip.dst \
@@ -87,43 +102,36 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
                 -e monero.payload.item.value.uint64 -e monero.payload.item.value.uint32 \
                 -e monero.payload.item.value.uint16 \
                 -e monero.payload.item.value.uint8 -e monero.payload.item.value.string \
-                > "data/tsv/$subdir_name/${capture_file}_packets.tsv"
+                > "data/tsv/$subdir_name/${capture_file}_packets_reassembled.tsv"
             
-            # Execute tshark command
-            #                -Y "(monero) && (ip.dst==$name)" \
-            #tshark -r "$pcapng_file" \
-            #    -o "monero.desegment:True" \
-            #    -Y "(monero)" \
-            #    -T fields \
-            #    -e frame.number -e frame.time_epoch -e ip.src -e ip.dst \
-            #    -e monero.command -e monero.flags \
-            #    -e tcp.segment.count -e tcp.len -e tcp.srcport -e tcp.dstport \
-            #    -e monero.payload.item.key -e monero.payload.item.type \
-            #    -e monero.payload.item.value.uint64 -e monero.payload.item.value.uint32 \
-            #    -e monero.payload.item.value.uint16 \
-            #    -e monero.payload.item.value.uint8 -e monero.payload.item.value.string \
-            #    > "data/tsv/$subdir_name/${capture_file}_packets_reassembled.tsv"
-            #
-            #tshark -r "$pcapng_file" \
-            #    -o "monero.desegment:False" \
-            #    -Y "(monero)" \
-            #    -T fields \
-            #    -e frame.number -e frame.time_epoch -e ip.src -e ip.dst \
-            #    -e monero.command -e monero.flags \
-            #    -e tcp.segment.count -e tcp.len -e tcp.srcport -e tcp.dstport \
-            #    -e monero.payload.item.key -e monero.payload.item.type \
-            #    -e monero.payload.item.value.uint64 -e monero.payload.item.value.uint32 \
-            #    -e monero.payload.item.value.uint16 \
-            #    -e monero.payload.item.value.uint8 -e monero.payload.item.value.string \
-            #    > "data/tsv/$subdir_name/${capture_file}_packets_not.tsv"
-            #
-            #{
-            #    cat "data/tsv/$subdir_name/${capture_file}_packets_reassembled.tsv"
-            #    cat "data/tsv/$subdir_name/${capture_file}_packets_not.tsv"
-            #} | sort -t$'\t' -k1,1n -u > "data/tsv/$subdir_name/${capture_file}_packets.tsv"
-            #
-            #rm data/tsv/$subdir_name/${capture_file}_packets_not.tsv
-            #rm data/tsv/$subdir_name/${capture_file}_packets_reassembled.tsv
+            tshark -r "$pcapng_file" \
+                -o "monero.desegment:False" \
+                -Y "(monero)" \
+                -T fields \
+                -e frame.number -e frame.time_epoch -e ip.src -e ip.dst \
+                -e monero.command -e monero.flags \
+                -e tcp.segment.count -e tcp.len -e tcp.srcport -e tcp.dstport \
+                -e monero.payload.item.key -e monero.payload.item.type \
+                -e monero.payload.item.value.uint64 -e monero.payload.item.value.uint32 \
+                -e monero.payload.item.value.uint16 \
+                -e monero.payload.item.value.uint8 -e monero.payload.item.value.string \
+                -e _ws.unreassembled \
+                > "data/tsv/$subdir_name/${capture_file}_packets_not.tsv"
+            
+            awk -F'\t' 'NF < 18 || $18 == "" {for(i=1;i<=17;i++) printf "%s%s", $i, (i==17?"\n":"\t")}' \
+                "data/tsv/$subdir_name/${capture_file}_packets_not.tsv" > \
+                "data/tsv/$subdir_name/${capture_file}_packets_not_filtered.tsv"
+            
+            mv "data/tsv/$subdir_name/${capture_file}_packets_not_filtered.tsv" \
+               "data/tsv/$subdir_name/${capture_file}_packets_not.tsv"
+
+            {
+                cat "data/tsv/$subdir_name/${capture_file}_packets_reassembled.tsv"
+                cat "data/tsv/$subdir_name/${capture_file}_packets_not.tsv"
+            } | sort -t$'\t' -k1,1n -u > "data/tsv/$subdir_name/${capture_file}_packets.tsv"
+            
+            rm data/tsv/$subdir_name/${capture_file}_packets_not.tsv
+            rm data/tsv/$subdir_name/${capture_file}_packets_reassembled.tsv
             
             # Check if the command was successful
             if [ $? -eq 0 ]; then
