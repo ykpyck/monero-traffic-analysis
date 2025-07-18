@@ -39,7 +39,12 @@
    ./extraction_script.sh
    ```
 
-5. **Analyze results**
+5. **Download ASN database**
+    To match IPs with ASN organizations download a respective database and save it as data/external/GeoLite2-ASN.mmdb.
+    https://github.com/P3TERX/GeoLite.mmdb?tab=readme-ov-file
+    https://www.maxmind.com/en/geolite2/eula
+
+6. **Analyze results**
    
    Open and run `final_notebook.ipynb` to check the analysis results.
 

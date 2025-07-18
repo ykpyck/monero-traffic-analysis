@@ -183,3 +183,4 @@ cython_debug/
 .pypirc
 .DS_Store
 results/signature_only_ips.csv
+constants.py
