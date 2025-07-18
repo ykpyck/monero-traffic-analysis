@@ -5,6 +5,7 @@ data/*/*
 .notes
 
 results/node_results/*.csv
+results/graphs/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

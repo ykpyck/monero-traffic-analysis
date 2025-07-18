@@ -1,12 +1,53 @@
 # monero-traffic-analysis
 
-## Requirements
-- Wireshark 4.4.6 
-    - monero support added with 4.4.0, tested with 4.4.6
-- Python3
-    - tested with version 3.12.3
-### Python Enviornment
-- pandas 2.2.3
+## Convenience Script
+# Setup and Usage
+
+## Prerequisites
+- Python 3.x
+- PCAP files for analysis
+
+## Installation Steps
+
+1. **Load PCAP files**
+   
+   Place all pcap files in the following directory structure:
+   ```
+   data/pcapng/<server_id>/
+   ```
+
+2. **Configure server mapping**
+   
+   Edit the `constants.py` file, adding your server_id as key and IP address as value:
+   ```python
+   servers = {
+       "<server_id>": "<server_ip>"
+   }
+   ```
+
+3. **Set up virtual environment**
+   ```bash
+   python -m venv .venv
+   source .venv/bin/activate
+   pip install -r requirements.txt
+   ```
+
+4. **Run extraction script**
+   
+   With the virtual environment active, execute:
+   ```bash
+   ./extraction_script.sh
+   ```
+
+5. **Analyze results**
+   
+   Open and run `final_notebook.ipynb` to check the analysis results.
+
+
+
+
+## Details:
+
 
 ## File Capture
 On the Monero host, we use dumpcap (included in a Wireshark installation) to capture and later work with the capture file efficiently. 
@@ -17,9 +58,7 @@ dumpcap -i <interface> -f "port 18080" -b duration:<time_in_seconds> -b files:<n
 ```
 e.g. a capture for 1 day (rotates to create 12 files to avoid overly large files):
 ``dumpcap -i eth0 -f "port 18080" -a duration:86400 -b duration:7200 -b files:12 -w capture.pcapng``
-
-## Convenience Script
-Using the convenience script 
+   
 
 ## File Preprocessing
 If not directly saved, load all capture files directly to the repo's pcapng folder.

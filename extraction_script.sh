@@ -1,27 +1,31 @@
 #!/bin/bash
 
-if [[ -f .env ]]; then
-    set -a  # automatically export all variables
-    source .env
-    set +a  # turn off automatic export
-fi
+eval $(python3 -c "
+import sys
+sys.path.append('.')
+from constants import servers
+for key, value in servers.items():
+    print(f'{key}={value}')
+")
 
 read -p "Process .pcapng files? (y/n): " process_pcapng
 
 if [[ $process_pcapng =~ ^[Yy]$ ]]; then
     # Check if data/pcapng directory exists
     # /media/kopy/Transcend/monero_pcap/paper_w-banlist
-    # if [ ! -d "data/pcapng" ]; then
+    #if [ ! -d "data/pcapng" ]; then
     #if [ ! -d "/media/kopy/Transcend/monero_pcap/paper_wo-banlist" ]; then
-    if [ ! -d "/home/ykpyck/Data/monero_pcap/wo-banlist" ]; then
+    #if [ ! -d "/home/ykpyck/Data/monero_pcap/wo-banlist" ]; then
+    if [ ! -d "data/pcapng" ]; then
         echo "Directory data/pcapng does not exist"
         exit 1
     fi
     
     # Loop through each subdirectory in data/pcapng
+    #for subdir in /home/ykpyck/Data/monero_pcap/wo-banlist/*/; do
     #for subdir in data/pcapng/*/; do
     #for subdir in /media/kopy/Transcend/monero_pcap/paper_wo-banlist/*/; do
-    for subdir in /home/ykpyck/Data/monero_pcap/wo-banlist/*/; do
+    for subdir in data/pcapng/*/; do
         # Check if subdirectories exist
         if [ ! -d "$subdir" ]; then
             echo "No subdirectories found in data/pcapng/"
@@ -32,7 +36,7 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
         subdir_name=$(basename "$subdir")
 
         #if [ "$subdir_name" = "archive" ]; then
-        if [[ "$subdir_name" =~ ^(syd|archive|sgp|sfo|blr)$ ]]; then
+        if [[ "$subdir_name" =~ ^(syd|archive|sgp|ams|blr)$ ]]; then
             echo "Skipping archive directory: $subdir_name"
             continue
         fi
@@ -78,21 +82,8 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
              -T fields \
              -e ip.src \
             | sort -u >> results/signature_only_ips.csv
-
-            #tshark -r "$pcapng_file" \
-            #    -Y "(monero)" \
-            #    -T fields \
-            #    -e frame.number -e frame.time_epoch -e ip.src -e ip.dst \
-            #    -e monero.command -e monero.flags \
-            #    -e tcp.segment.count -e tcp.len -e tcp.srcport -e tcp.dstport \
-            #    -e monero.payload.item.key -e monero.payload.item.type \
-            #    -e monero.payload.item.value.uint64 -e monero.payload.item.value.uint32 \
-            #    -e monero.payload.item.value.uint16 \
-            #    -e monero.payload.item.value.uint8 -e monero.payload.item.value.string \
-            #    > "data/tsv/$subdir_name/${capture_file}_packets.tsv"
             
-            # Execute tshark command
-            #                -Y "(monero) && (ip.dst==$name)" \
+            # process pcaps letting the monero dissector decide
             tshark -r "$pcapng_file" \
                 -o "monero.desegment:True" \
                 -Y "(monero)" \
@@ -106,6 +97,7 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
                 -e monero.payload.item.value.uint8 -e monero.payload.item.value.string \
                 > "data/tsv/$subdir_name/${capture_file}_packets_reassembled.tsv"
             
+            # process again by force every packet without reassemly 
             tshark -r "$pcapng_file" \
                 -o "monero.desegment:False" \
                 -Y "(monero)" \
@@ -120,13 +112,15 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
                 -e _ws.unreassembled \
                 > "data/tsv/$subdir_name/${capture_file}_packets_not.tsv"
             
+            # remove all packets that could have been reassembled (already present in first tsv)
             awk -F'\t' 'NF < 18 || $18 == "" {for(i=1;i<=17;i++) printf "%s%s", $i, (i==17?"\n":"\t")}' \
                 "data/tsv/$subdir_name/${capture_file}_packets_not.tsv" > \
                 "data/tsv/$subdir_name/${capture_file}_packets_not_filtered.tsv"
             
             mv "data/tsv/$subdir_name/${capture_file}_packets_not_filtered.tsv" \
                "data/tsv/$subdir_name/${capture_file}_packets_not.tsv"
-
+            
+            # combine both tsvs and remove duplicats -> duplicates occur when it is a by default not reassembled packet (small not fragmented)
             {
                 cat "data/tsv/$subdir_name/${capture_file}_packets_reassembled.tsv"
                 cat "data/tsv/$subdir_name/${capture_file}_packets_not.tsv"
@@ -208,5 +202,6 @@ for subdir in data/tsv/*/; do
 done
 
 # Initiate final analysis script 
-echo "Final analysis initiated..."
-#python analysis.py
+echo "load and clean the data..."
+
+python3 load_clean_data.py

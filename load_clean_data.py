@@ -1,18 +1,8 @@
 import json
 import pandas as pd
 from pathlib import Path
-
-servers = {}
-with open('.env', 'r') as f:
-    for line in f:
-        if '=' in line:
-            key, value = line.strip().split('=', 1)
-            servers[key] = value
-
-folder_path=Path("data/packets/ams")
-node = str.split(str(folder_path), '/')[-1]
-my_ip = servers[node]
-default_port = 18080
+from constants import servers
+import os
 
 def load_json(folder_path):
     # load all jsons
@@ -76,28 +66,46 @@ def de_duplicate(peer_packets_df):
 
     return peer_packets_df
 
-peer_packets_df, peers_df = load_json(folder_path=folder_path)
-# some data cleaning
-peer_packets_df = de_duplicate(peer_packets_df)
 
-command_list = [
-    '1001',     # Handshake
-    '1002',     # Timed Sync    
-    '1003',     # Ping
-    '1007',     # Req. Support Flags
-    '2001',     # 
-    '2002',     # New Transaction
-    '2003',
-    '2004',
-    '2006',
-    '2007',
-    '2008',
-    '2009',
-    '2010'
-]
+def main():
+    # in complete script do: for node in servers.keys()
 
-peer_packets_df = peer_packets_df[peer_packets_df['command'].isin(command_list)]
-peer_packets_df['timestamp'] = pd.to_datetime(peer_packets_df['timestamp'])
+    node = 'sfo'
+    for node in servers.keys():
+        folder_path=Path(f"data/packets/{node}")
 
-peer_packets_df.to_parquet(f"data/dataframes/peer_packets_{node}.parquet", index=False)
-peers_df.to_parquet(f"data/dataframes/peers_{node}.parquet", index=False)
+        if not folder_path.exists():
+            continue
+
+        my_ip = servers[node]
+
+        peer_packets_df, peers_df = load_json(folder_path=folder_path)
+        # some data cleaning
+        peer_packets_df = de_duplicate(peer_packets_df)
+
+        command_list = [
+            '1001',     # Handshake
+            '1002',     # Timed Sync    
+            '1003',     # Ping
+            '1007',     # Req. Support Flags
+            '2001',     # 
+            '2002',     # New Transaction
+            '2003',
+            '2004',
+            '2006',
+            '2007',
+            '2008',
+            '2009',
+            '2010'
+        ]
+
+        peer_packets_df = peer_packets_df[peer_packets_df['command'].isin(command_list)]
+        peer_packets_df['timestamp'] = pd.to_datetime(peer_packets_df['timestamp'])
+
+        peer_packets_df.to_parquet(f"data/dataframes/peer_packets_{node}.parquet", index=False)
+        peers_df.to_parquet(f"data/dataframes/peers_{node}.parquet", index=False)
+
+
+if __name__ == '__main__':
+    main()
+
