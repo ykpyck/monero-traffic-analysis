@@ -184,3 +184,8 @@ cython_debug/
 .DS_Store
 results/signature_only_ips.csv
 constants.py
+results/wo-banlist/conn_saturation_with.pdf
+.gitignore
+.gitignore
+edges.csv
+nodes.csv

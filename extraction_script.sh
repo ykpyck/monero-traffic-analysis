@@ -10,13 +10,15 @@ for key, value in servers.items():
 
 read -p "Process .pcapng files? (y/n): " process_pcapng
 
+read -p "Ban list active? (with/without) " ban
+
 if [[ $process_pcapng =~ ^[Yy]$ ]]; then
     # Check if data/pcapng directory exists
     # /media/kopy/Transcend/monero_pcap/paper_w-banlist
     #if [ ! -d "data/pcapng" ]; then
-    #if [ ! -d "/media/kopy/Transcend/monero_pcap/paper_wo-banlist" ]; then
+    #if [ ! -d "/media/ykpyck/Transcend/monero_pcap/paper_w-banlist" ]; then
     #if [ ! -d "/home/ykpyck/Data/monero_pcap/wo-banlist" ]; then
-    if [ ! -d "data/pcapng" ]; then
+    if [ ! -d "/media/ykpyck/Transcend/monero_pcap/paper_wo-banlist" ]; then
         echo "Directory data/pcapng does not exist"
         exit 1
     fi
@@ -24,8 +26,8 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
     # Loop through each subdirectory in data/pcapng
     #for subdir in /home/ykpyck/Data/monero_pcap/wo-banlist/*/; do
     #for subdir in data/pcapng/*/; do
-    #for subdir in /media/kopy/Transcend/monero_pcap/paper_wo-banlist/*/; do
-    for subdir in data/pcapng/*/; do
+    #for subdir in /media/ykpyck/Transcend/monero_pcap/paper_w-banlist/*/; do
+    for subdir in /media/ykpyck/Transcend/monero_pcap/paper_wo-banlist/*/; do
         # Check if subdirectories exist
         if [ ! -d "$subdir" ]; then
             echo "No subdirectories found in data/pcapng/"
@@ -36,7 +38,7 @@ if [[ $process_pcapng =~ ^[Yy]$ ]]; then
         subdir_name=$(basename "$subdir")
 
         #if [ "$subdir_name" = "archive" ]; then
-        if [[ "$subdir_name" =~ ^(syd|archive|sgp|ams|blr)$ ]]; then
+        if [[ "$subdir_name" =~ ^(archive)$ ]]; then #(syd|archive|sgp|ams|blr)$ ]]; then
             echo "Skipping archive directory: $subdir_name"
             continue
         fi
@@ -196,12 +198,13 @@ for subdir in data/tsv/*/; do
     if [ "$subdir_tsv_found" = false ]; then
         echo "No .tsv files found in $subdir_name/"
     fi
-    
+
+    rm -r data/tsv/$subdir_name/
     echo "Finished processing subdirectory: $subdir_name"
     echo "---"
 done
 
-# Initiate final analysis script 
+# Initiate loading and cleaning script 
 echo "load and clean the data..."
 
-python3 load_clean_data.py
+python3 load_clean_data.py $ban

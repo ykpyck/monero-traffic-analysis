@@ -3,6 +3,8 @@ import pandas as pd
 from pathlib import Path
 from constants import servers
 import os
+import sys
+import shutil
 
 def load_json(folder_path):
     # load all jsons
@@ -25,6 +27,7 @@ def load_json(folder_path):
 
             if not packet['local_peerlist_new'] is None:
                 packet['peerlist_length'] = len(packet['local_peerlist_new'])
+                packet_meta['peerlist_length'] = packet['peerlist_length']
                 for peer in packet['local_peerlist_new']:
                     peer_data = peer.copy()
                     peer_data['source_ip'] = packet['source_ip']
@@ -70,14 +73,14 @@ def de_duplicate(peer_packets_df):
 def main():
     # in complete script do: for node in servers.keys()
 
-    node = 'sfo'
+    ban = sys.argv[1]
+
+    #node = 'sfo'
     for node in servers.keys():
         folder_path=Path(f"data/packets/{node}")
 
         if not folder_path.exists():
             continue
-
-        my_ip = servers[node]
 
         peer_packets_df, peers_df = load_json(folder_path=folder_path)
         # some data cleaning
@@ -102,8 +105,10 @@ def main():
         peer_packets_df = peer_packets_df[peer_packets_df['command'].isin(command_list)]
         peer_packets_df['timestamp'] = pd.to_datetime(peer_packets_df['timestamp'])
 
-        peer_packets_df.to_parquet(f"data/dataframes/peer_packets_{node}.parquet", index=False)
-        peers_df.to_parquet(f"data/dataframes/peers_{node}.parquet", index=False)
+        peer_packets_df.to_parquet(f"data/dataframes/peer_packets_{node}_{ban}.parquet", index=False)
+        peers_df.to_parquet(f"data/dataframes/peers_{node}_{ban}.parquet", index=False)
+
+        shutil.rmtree(folder_path)
 
 
 if __name__ == '__main__':
