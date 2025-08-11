@@ -71,7 +71,6 @@ def de_duplicate(peer_packets_df):
 
 
 def main():
-    # in complete script do: for node in servers.keys()
 
     ban = sys.argv[1]
 

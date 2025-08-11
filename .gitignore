@@ -189,3 +189,4 @@ results/wo-banlist/conn_saturation_with.pdf
 .gitignore
 edges.csv
 nodes.csv
+arch/final_notebook.ipynb

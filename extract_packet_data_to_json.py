@@ -5,6 +5,9 @@ import struct
 import json
 import datetime
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 def uint32_to_ip(ip_int):
     """Convert uint32 to IP address string."""
@@ -43,6 +46,7 @@ def process_node_data(keys, types, values, type_counters, start_idx, end_idx):
                         node_data[key] = bool(int(value)) if value != '' else False
                     else:
                         node_data[key] = int(value) if value != '' else 0
+                        logging.info(f"Value: {value} - int(value): {int(value)}")
                 except:
                     node_data[key] = value
             elif field_type == '10':  # string
