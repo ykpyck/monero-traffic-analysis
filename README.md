@@ -13,7 +13,7 @@
    
    Place all pcap files in the following directory structure:
    ```
-   data/pcapng/<server_id>/
+   data/pcapng/<server_id>/*.pcapng
    ```
 
 2. **Configure server mapping**
