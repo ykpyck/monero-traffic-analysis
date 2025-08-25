@@ -10,27 +10,26 @@ for key, value in servers.items():
 
 read -p "Process .pcapng files? (y/n): " process_pcapng
 
-read -p "Ban list active? (with/without) " ban
+pcapng_dir=${pcapng_dir:-"data/pcapng"}
 
+read -p 'Enter a capture identifier, like "with" or "without" ban list to identify the results if run multiple times with different data sets: ' identifier
 if [[ $process_pcapng =~ ^[Yy]$ ]]; then
+
+    read -p "Enter the path to your pcapng directory [default: data/pcapng]: " pcapng_dir
+
+    pcapng_dir=${pcapng_dir:-"data/pcapng"}
+
     # Check if data/pcapng directory exists
-    # /media/kopy/Transcend/monero_pcap/paper_w-banlist
-    #if [ ! -d "data/pcapng" ]; then
-    #if [ ! -d "/media/ykpyck/Transcend/monero_pcap/paper_w-banlist" ]; then
-    #if [ ! -d "/home/ykpyck/Data/monero_pcap/wo-banlist" ]; then
-    if [ ! -d "/media/ykpyck/Transcend/monero_pcap/paper_wo-banlist" ]; then
-        echo "Directory data/pcapng does not exist"
+    if [ ! -d "$pcapng_dir" ]; then
+        echo "Directory '$pcapng_dir' does not exist"
         exit 1
     fi
     
     # Loop through each subdirectory in data/pcapng
-    #for subdir in /home/ykpyck/Data/monero_pcap/wo-banlist/*/; do
-    #for subdir in data/pcapng/*/; do
-    #for subdir in /media/ykpyck/Transcend/monero_pcap/paper_w-banlist/*/; do
-    for subdir in /media/ykpyck/Transcend/monero_pcap/paper_wo-banlist/*/; do
+    for subdir in "$pcapng_dir"/*/; do
         # Check if subdirectories exist
         if [ ! -d "$subdir" ]; then
-            echo "No subdirectories found in data/pcapng/"
+            echo "No subdirectories found in '$pcapng_dir/'"
             exit 1
         fi
         
@@ -207,4 +206,21 @@ done
 # Initiate loading and cleaning script 
 echo "load and clean the data..."
 
-python3 load_clean_data.py $ban
+if [[ $process_pcapng =~ ^[Yy]$ ]]; then
+    python3 load_clean_data.py $identifier
+fi
+
+echo "Datasets ready."
+
+echo "Continue with anomaly analysis? (y/n)"
+echo "Will auto-continue with 'y' in 3 minutes if no input..."
+
+read -t 180 -p "Your choice: " analysis
+if [[ $? -eq 142 ]]; then
+    echo -e "\nTimeout reached. Automatically continuing with analysis..."
+    analysis="y"
+fi
+
+if [[ $analysis =~ ^[Yy]$ ]]; then
+    python3 main.py $identifier
+fi

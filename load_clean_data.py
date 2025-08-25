@@ -72,10 +72,12 @@ def de_duplicate(peer_packets_df):
 
 def main():
 
-    ban = sys.argv[1]
+    dataset_identifier = sys.argv[1]
 
     #node = 'sfo'
     for node in servers.keys():
+        print(f"Processing {node} data...")
+
         folder_path=Path(f"data/packets/{node}")
 
         if not folder_path.exists():
@@ -104,8 +106,8 @@ def main():
         peer_packets_df = peer_packets_df[peer_packets_df['command'].isin(command_list)]
         peer_packets_df['timestamp'] = pd.to_datetime(peer_packets_df['timestamp'])
 
-        peer_packets_df.to_parquet(f"data/dataframes/peer_packets_{node}_{ban}.parquet", index=False)
-        peers_df.to_parquet(f"data/dataframes/peers_{node}_{ban}.parquet", index=False)
+        peer_packets_df.to_parquet(f"data/dataframes/peer_packets_{node}_{dataset_identifier}.parquet", index=False)
+        peers_df.to_parquet(f"data/dataframes/peers_{node}_{dataset_identifier}.parquet", index=False)
 
         shutil.rmtree(folder_path)
 

@@ -1,3 +1,4 @@
+arch
 data/*
 data/*/*
 !data/*/
@@ -183,10 +184,10 @@ cython_debug/
 .pypirc
 .DS_Store
 results/signature_only_ips.csv
-constants.py
 results/wo-banlist/conn_saturation_with.pdf
 .gitignore
 .gitignore
 edges.csv
 nodes.csv
 arch/final_notebook.ipynb
+results/identified_ns_ips.txt

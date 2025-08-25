@@ -11,10 +11,14 @@
 
 1. **Load PCAP files**
    
-   Place all pcap files in the following directory structure:
+   Either place all pcap files in the default directory structure:
    ```
    data/pcapng/<server_id>/*.pcapng
    ```
+   or have a direct path ready as: 
+   ```/path/to/your/nodes/data```
+   , where the data folder should have similar structure as above, meaning:
+   ```/path/to/your/nodes/data/<server_id>/*.pcapng```
 
 2. **Configure server mapping**
    
@@ -24,6 +28,7 @@
        "<server_id>": "<server_ip>"
    }
    ```
+   The default configuration is ready for the submission data. 
 
 3. **Set up virtual environment**
    ```bash
@@ -32,24 +37,28 @@
    pip install -r requirements.txt
    ```
 
-4. **Run extraction script**
+4. **Download ASN database**
+    To match IPs with ASN organizations download a respective database and save it as data/external/GeoLite2-ASN.mmdb.
+
+    https://github.com/P3TERX/GeoLite.mmdb?tab=readme-ov-file
+
+    (https://www.maxmind.com/en/geolite2/eula)
+
+5. **Run the convenience script**
    
    With the virtual environment active, execute:
    ```bash
-   ./extraction_script.sh
+   ./convenience_script.sh
    ```
-
-5. **Download ASN database**
-    To match IPs with ASN organizations download a respective database and save it as data/external/GeoLite2-ASN.mmdb.
-    https://github.com/P3TERX/GeoLite.mmdb?tab=readme-ov-file
-    https://www.maxmind.com/en/geolite2/eula
+   If you prefer to over the results step by step, you can choose no when asked to proceed with the analysis and continue with step 6.
 
 6. **Analyze results**
    
-   Open and run `final_notebook.ipynb` to check the analysis results.
+   Open and run `main_notebook.ipynb` to check the analysis results step by step.
 
 
 
+## Outdates README: 
 
 ## Details:
 
@@ -152,3 +161,4 @@ https://www.maxmind.com/en/geolite2/eula
 # banlist
 https://gist.github.com/Rucknium/76edd249c363b9ecf2517db4fab42e88
 https://github.com/Boog900/monero-ban-list/blob/main/ban_list.txt
+
