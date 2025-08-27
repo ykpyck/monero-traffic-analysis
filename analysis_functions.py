@@ -1,19 +1,14 @@
 import ipaddress
-import json
 import pandas as pd
 import matplotlib.pyplot as plt
 from collections import defaultdict
-from datetime import datetime, timedelta
 import numpy as np
-from pathlib import Path
-from collections import Counter
-import ast
-import matplotlib.colors as mcolors
 import maxminddb
 from itertools import combinations
 from constants import servers
 import logging
 import os
+import random
 
 logging.basicConfig(level=logging.INFO)
 
@@ -574,7 +569,7 @@ def analyze_node_connections(peer_packets_df, my_ip, default_port, threshold, mi
         std_dev_lat = None
         var_lat = None
         #if not tcp_anomaly and len(ts_series) > min_tss:
-        if not tcp_anomaly and duration > 10:
+        if not tcp_anomaly and duration > min_tss:
             differences = ts_series.diff().dt.total_seconds().dropna()
             median_lat = differences.median()
             mean_lat = differences.mean()
@@ -662,6 +657,8 @@ def analyze_node_connections(peer_packets_df, my_ip, default_port, threshold, mi
 
     conn_df['category'] = np.select(conditions, choices, default='standard_other')
 
+    #plot_random_conns(conn_df, grouped, my_ip)
+
     return conn_df
 
 def connections(ban, threshold=90, min_tss=2):
@@ -708,6 +705,170 @@ def connections(ban, threshold=90, min_tss=2):
             logging.info(f"No Violation - No {c} violation in data set.")
 
     return sus_short, sus_ping, sus_ts, conn_df['ts_latency'], all_conns
+
+# PLOT connection anomalies
+# RANDOM PLOTS
+def get_command_category(cmd, flag, source, my_ip):
+    """Map commands and flags to categories"""
+    if source == my_ip:
+        i = 4
+    else:
+        i = 0
+        
+    category_map = {
+        ('1001', '1'): 1+i,    # Handshake Request
+        ('1001', '2'): 1+i,    # HS Resp
+        ('1002', '1'): 2+i,    # Timed Sync Request
+        ('1002', '2'): 3+i,    # TS Response
+        ('1003', '1'): 4+i,    # Ping
+        ('1003', '2'): 4+i     # Pong
+    }
+    
+    return category_map.get((cmd, flag), 0)
+
+def setup_axis_appearance(ax, time_duration_seconds, show_ylabel=True):
+    """Configure axis appearance for LaTeX paper"""
+    category_labels = ['HS', 'TS Req', 'TS Resp', 'Ping', 'HS', 'TS Req', 'TS Resp', 'Pong']
+
+    ax.set_xlabel('Time (s)', fontsize=8)
+    #ax.set_ylabel('Command Type', fontsize=10)
+    ax.set_xticks(range(0, time_duration_seconds + 1, 120))
+    ax.set_yticks([1, 2, 3, 4, 5, 6, 7, 8])
+    ax.set_yticklabels(category_labels, fontsize=8)
+    ax.tick_params(axis='both', which='major', labelsize=8)
+    ax.set_ylim(0.5, 8.5)
+    
+    ax.set_xlim(0, time_duration_seconds)
+    ax.grid(True, alpha=0.3, linestyle='--')
+    
+    # Add minor grid lines at 60s intervals
+    ax.set_xticks(range(0, time_duration_seconds, 60), minor=True)
+    ax.grid(True, alpha=0.3, linestyle='--', which='minor')
+
+def plot_command_timeline_subplot(ax, base_commands, base_flags, base_series, base_sources, title, my_ip,
+                                time_duration_seconds=300, show_ylabel=True):
+    """Plot command timeline on given axis"""
+    if len(base_series) == 0:
+        ax.text(0.5, 0.5, 'No data', transform=ax.transAxes, 
+                ha='center', va='center', fontsize=7)
+        ax.set_title(title, fontsize=8, pad=8)
+
+        setup_axis_appearance(ax, time_duration_seconds, show_ylabel)
+        return
+    
+    # Convert to seconds from start and filter by duration
+    time_seconds = (base_series - base_series.iloc[0]).dt.total_seconds()
+    time_mask = time_seconds <= time_duration_seconds
+    
+    if not time_mask.any():
+        ax.text(0.5, 0.5, 'No data in time range', transform=ax.transAxes, 
+                ha='center', va='center', fontsize=9)
+        ax.set_title(title, fontsize=10, pad=10)
+        setup_axis_appearance(ax, time_duration_seconds, show_ylabel)
+        return
+    
+    # Filter data and create categories    
+    commands_filtered = base_commands[time_mask]
+    flags_filtered = base_flags[time_mask]
+    time_filtered = time_seconds[time_mask]
+    sources_filtered = base_sources[time_mask]
+
+    
+    categories = [get_command_category(cmd, flag, source, my_ip) 
+                  for cmd, flag, source in zip(commands_filtered, flags_filtered, sources_filtered)]
+    
+    #print(f"{title}: {sources_filtered[:2]} : {base_series[:1]}")
+    
+    colors = ['red' if source == my_ip else 'blue' 
+          for source in sources_filtered]
+
+    ax.scatter(time_filtered, categories, c=colors, s=10, alpha=0.7)
+
+    ax.axhline(4.5, color='gray', linestyle=':')
+
+    ax.text(time_duration_seconds * 0.95, 4.7, 'My Node', 
+            ha='right', va='bottom', fontsize=8, color='red')
+    
+    # Add text below the line  
+    ax.text(time_duration_seconds * 0.95, 4.3, 'Peer', 
+            ha='right', va='top', fontsize=8, color='blue')
+    
+    #ax.set_title(title, fontsize=10, pad=10, weight='bold')
+    if sources_filtered[0] == my_ip:
+        direction = 'outgoing'
+    else: 
+        direction = 'incoming'
+    setup_axis_appearance(ax, time_duration_seconds, show_ylabel)
+    
+def plot_random_conns(conn_df, grouped, my_ip):
+    set_plt_latex_format()
+    categories_to_plot = ['ping_flooding', 'throttled_ts', 'standard_average']  # Modify this array as needed
+    max_connections_per_type = 1
+    time_duration_seconds=200 # 660
+
+    # Add randomness to peer selection
+    connection_data = {}
+    used_peers = set()
+
+    for category in categories_to_plot:
+            
+        category_df = conn_df[conn_df['category'] == category]
+        
+        # Randomly shuffle the connections in this category
+        category_df = category_df.sample(frac=1, random_state=random.randint(1, 10000))
+        
+        connection_data[category] = []
+        count = 0
+        
+        for idx, row in category_df.iterrows():
+            if count >= max_connections_per_type:
+                break
+                
+            conn_id = row['connection_id']
+            peer_ip = row['peer_ip']
+
+            if peer_ip in used_peers:
+                continue
+                
+            conn = grouped.get_group(conn_id)
+            
+            commands = np.array(conn['command'])
+            monero_flags = np.array(conn['monero_flags'])
+            timestamps = np.array(conn['timestamp'])
+            source_ips = np.array(conn['source_ip'])
+                
+            used_peers.add(peer_ip)
+            
+            # base commands only interesting as only these are expectable
+            base_mask = np.isin(commands, ['1001', '1002', '1003'])
+            base_series = pd.Series(timestamps[base_mask])
+            
+            connection_data[category].append({
+                'peer': peer_ip,
+                'source_ips': source_ips[base_mask],
+                'commands': commands[base_mask],
+                'flags': monero_flags[base_mask],
+                'series': base_series
+            })
+            count += 1
+
+    # individual plots for each category
+    for category in connection_data:
+        for j, data in enumerate(connection_data[category]):
+            fig, ax = plt.subplots(figsize=(3.13, 1))
+            
+            title = f"{category}_{j+1}\n{data['peer']}-{data['series'].iloc[0]}"
+            
+            plot_command_timeline_subplot(
+                ax, data['commands'], data['flags'], 
+                data['series'], data['source_ips'], title, my_ip,
+                time_duration_seconds, show_ylabel=True
+            )
+            
+            #plt.tight_layout()
+            plt.savefig(f'results/graphs/{category}_{j+1}.pdf', bbox_inches='tight', dpi=300)
+            plt.show()
+            #plt.close()
 
 # Ban and Signature-only IPs
 def ban_and_signature(ban):
@@ -756,14 +917,20 @@ def subnets_asn_comb(ban):
 
     all_peers_df = pd.DataFrame()
     all_peers_extended_df = pd.DataFrame()  # New: for combined data
+    high_subnet_ips = set()
+    lion_peers = set()
 
     for node in servers.keys():
         peer_packets_df = pd.read_parquet(f"data/dataframes/peer_packets_{node}_{ban}.parquet")
         peers_df = pd.read_parquet(f"data/dataframes/peers_{node}_{ban}.parquet")
         
+        # Add subnet and ASN columns once
+        peer_packets_df['subnet'] = peer_packets_df['source_ip'].apply(lambda ip: str(ipaddress.IPv4Network(f"{ip}/24", strict=False).network_address) + "/24")
+        #peer_packets_df['asn'] = peer_packets_df['source_ip'].apply(ip_to_asn)
+        
         # Original data (peer_packets only)
         all_unique_ips = pd.DataFrame({
-            'ip': pd.concat([peer_packets_df['source_ip']]).unique()
+            'ip': peer_packets_df['source_ip'].unique()
         })
         all_peers_df = pd.concat([all_peers_df, all_unique_ips], ignore_index=True)
         
@@ -772,6 +939,15 @@ def subnets_asn_comb(ban):
             'ip': pd.concat([peer_packets_df['source_ip'], peers_df['ip']]).unique()
         })
         all_peers_extended_df = pd.concat([all_peers_extended_df, all_unique_ips_ext], ignore_index=True)
+        
+        all_peers_extended_df['asn'] = all_peers_extended_df['ip'].apply(ip_to_asn)
+
+        # Collect lion_peers data in the same loop (ASN already calculated)
+        lion_peers.update(all_peers_extended_df[all_peers_extended_df['asn'] == 'LIONLINK-NETWORKS']['ip'].unique())
+
+    # Remove duplicates across nodes
+    all_peers_df = all_peers_df.drop_duplicates(subset=['ip'])
+    all_peers_extended_df = all_peers_extended_df.drop_duplicates(subset=['ip'])
 
     # Process original data (for main bars)
     all_peers_df['subnet'] = all_peers_df['ip'].apply(lambda ip: str(ipaddress.IPv4Network(f"{ip}/24", strict=False).network_address) + "/24")
@@ -781,6 +957,12 @@ def subnets_asn_comb(ban):
     # Process extended data (for background bars)
     all_peers_extended_df['subnet'] = all_peers_extended_df['ip'].apply(lambda ip: str(ipaddress.IPv4Network(f"{ip}/24", strict=False).network_address) + "/24")
     extended_subnet_counts = all_peers_extended_df['subnet'].value_counts()
+    
+    # Now collect high_subnet_ips using already-processed data
+    for node in servers.keys():
+        peer_packets_df = pd.read_parquet(f"data/dataframes/peer_packets_{node}_{ban}.parquet")
+        peer_packets_df['subnet'] = peer_packets_df['source_ip'].apply(lambda ip: str(ipaddress.IPv4Network(f"{ip}/24", strict=False).network_address) + "/24")
+        high_subnet_ips.update(peer_packets_df[peer_packets_df['subnet'].isin(top_subnets.index)]['source_ip'].unique())
     
     plot_data = []
     for subnet in top_subnets.index:
@@ -835,15 +1017,6 @@ def subnets_asn_comb(ban):
     plt.savefig(f'results/graphs/{ban}_asn_subnet_dist_conns.pdf', dpi=300)
     plt.show()
 
-    high_subnet_ips = set()
-    lion_peers = set()
-
-    for node in servers.keys():
-        peer_packets_df = pd.read_parquet(f"data/dataframes/peer_packets_{node}_{ban}.parquet")
-        peer_packets_df['subnet'] = peer_packets_df['source_ip'].apply(lambda ip: str(ipaddress.IPv4Network(f"{ip}/24", strict=False).network_address) + "/24")
-        high_subnet_ips.update(peer_packets_df[peer_packets_df['subnet'].isin(top_subnets.keys())]['source_ip'].unique())
-        lion_peers.update(peer_packets_df[peer_packets_df['subnet'].isin(['LIONLINK-NETWORKS'])]['source_ip'].unique())
-
     return set(high_subnet_ips), len(lion_peers), median_subnet_peers
 
 # In-Degree Analysis
@@ -890,9 +1063,9 @@ def summarize_IPs_plot_overlap(ban, data_dict):
     combined_matrix = np.maximum(matrix_norm, matrix_asn_norm)
     
     new_labels = ['SFO', 'LST', 'PLD', 'PLS', 'ID', 'SlC', 'Ping', 'TS', 'Sig', 'Sub', 'Ban']
-    new_labels = ['SFO', 'LST', 'PLD', 'PLS', 'ID', 'SlC', 'Ping', 'TS', 'Sig', 'Ban']
+    #new_labels = ['SFO', 'LST', 'PLD', 'PLS', 'ID', 'SlC', 'Ping', 'TS', 'Sig', 'Ban']
 
-    plt.figure(figsize=(3.13, 3.13), dpi=300)
+    plt.figure(figsize=(3.13, 4.2), dpi=300)
     plt.imshow(combined_matrix, cmap='Blues')
     plt.xticks(range(n), new_labels, rotation=45, fontsize=6)
     plt.yticks(range(n), new_labels, fontsize=6)
@@ -912,20 +1085,32 @@ def summarize_IPs_plot_overlap(ban, data_dict):
             plt.text(j, i-0.2, ip_val, ha='center', va='center', fontsize=5, color=color)
             plt.text(j, i+0.2, f"({asn_val})", ha='center', va='center', fontsize=4, color=color)
     
+    legend_text1 = "SFO=Support Flags Omission, LST=Last Seen Transmission, PLD=Peer List Diversity"
+    legend_text2 = "PLS=Peer List Similarity, ID=Node ID Anomaly, SlC=Short-lived Connections"
+    legend_text3 = "Ping=Ping Flooding, TS=Timed Sync Throttling, Sig=Signature Only TCP Packets"
+    legend_text4 = "Sub=High Subnet Saturation, Ban=Community Ban Listed"
+    legend_text1 = "Support Flags Omission, Last Seen Transmission, Peer List Diversity,"
+    legend_text2 = "Peer List Similarity, Node ID Anomaly, Short-lived Connections,"
+    legend_text3 = "Ping Flooding, Timed Sync Throttling, Signature Only TCP Packets,"
+    legend_text4 = "High Subnet Saturation, Community Ban Listed"
+
+    plt.subplots_adjust(bottom=0.25)
+
+    plt.figtext(0.5, 0.14, legend_text1, ha='center', fontsize=6)
+    plt.figtext(0.5, 0.11, legend_text2, ha='center', fontsize=6)
+    plt.figtext(0.5, 0.08, legend_text3, ha='center', fontsize=6)
+    plt.figtext(0.5, 0.05, legend_text4, ha='center', fontsize=6)
+
     plt.tight_layout()
-    plt.savefig(f'results/graphs/{ban}_overlap_ips_as.pdf')
+    plt.savefig(f'results/graphs/{ban}_overlap_ips_as.pdf', bbox_inches='tight')
     plt.show()
 
     identified_ns_peers = set()
     for key in data_dict.keys():
         if not key in ['High Subnet Sat', 'Ban Listed']:
             for ip in data_dict[key]['ips']:
-                if ban == 'with':
-                    if not ip in data_dict['Ban Listed']['ips']:
-                        identified_ns_peers.add(ip)
-                else:
-                    identified_ns_peers.add(ip)
-
+                identified_ns_peers.add(ip)
+    logging.info(f"Identified {len(identified_ns_peers)} non-standard peers.")
     return identified_ns_peers
 
 # Measure and plot the saturation of non-standard peers
@@ -1054,8 +1239,11 @@ def plot_anom_saturation(ban, total_anomaly_set):
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(3.13, 3), dpi=300)
 
     classifications = avg_incoming.columns if not avg_incoming.empty else avg_outgoing.columns
-    colors = plt.cm.Accent(np.linspace(0, 1, len(classifications)))
-    color_map = dict(zip(classifications, colors))
+    # colors = plt.cm.Accent(np.linspace(0, 1, len(classifications)))
+    color_map = {
+        'anomalous': 'red',
+        'non-anomalous': 'gray'
+    }
 
     stats = {}
     # plot averaged data
@@ -1183,22 +1371,6 @@ def pl_poison_dist(ban, identified_ns_peers):
     
     return all_portions
 
-# Measure network distribution
-def network_distribution(ban, identified_ns_peers):
-    ban = ban
-    
-    connected_ips = set()
-
-    for node in servers.keys():
-        peer_packets_df = pd.read_parquet(f"data/dataframes/peer_packets_{node}_{ban}.parquet")
-        
-        connected_ips.update(peer_packets_df['source_ip'].unique())
-
-    intersection = list(set(identified_ns_peers) & set(connected_ips))
-
-        
-    return (len(intersection) / len(connected_ips))
-
 # LaTex result writing
 def format_number(value):
    # Convert to float if it's a number
@@ -1216,9 +1388,9 @@ def format_number(value):
        else:
            # Format with decimal places and commas if >= 1000
            if abs(rounded) >= 1000:
-               return f"{rounded:,.1f}"
+               return f"{rounded:,.2f}"
            else:
-               return f"{rounded:.1f}"
+               return f"{rounded:.2f}"
    
    # Return as-is if not a number
    return str(value)
@@ -1241,10 +1413,13 @@ def retrieve_asns(ips):
 def format_and_write_tex(ban, basic_stats, anomaly_dict, conn_df, all_latencies, indegrees, 
                          sus_id_anomaly_ips, sus_id_cluster_ips, num_clusters, median_subnet_peers, 
                          identified_ns_peers, reachable_peers, lion_peers, saturation_stats, 
-                         ban_list_stats, pl_poison):
+                         ban_list_stats, pl_poison, len_all_ns_peers):
+    
     no_space = ['medianSubnetPeers', 'medConnCommands', 'medConnDuration', 'avgInDegree', 'medianInDegree',
                 'incomingConnSatwithout', 'outgoingConnSatwithout', 'percentageAnomNet', 'avgPeerPoisoning',
-                'outgoingConnSatwith', 'incomingConnSatwith']
+                'outgoingConnSatwith', 'incomingConnSatwith','percentageAnomReach']
+
+    two_decimal = ['percentageAnomNet']
 
     results = {
         'totalPackets': basic_stats['totalPackets'],
@@ -1297,8 +1472,10 @@ def format_and_write_tex(ban, basic_stats, anomaly_dict, conn_df, all_latencies,
         f'totalincomingConnSat{ban}': saturation_stats['In_mean_anomalous_active'],
         f'totaloutgoingConnSat{ban}': saturation_stats['Out_mean_anomalous_active'],
         'avgPeerPoisoning': (np.mean(pl_poison)*100),
-        'percentageAnomNet': (basic_stats['totalUniqueIPs']/len(identified_ns_peers)),
-        'percentageAnomReach': (basic_stats['totalUniqueIPs']/len(reachable_peers))
+        'percentageAnomNet': (len(identified_ns_peers)/basic_stats['totalUniqueIPs']*100),
+        'percentageAnomReach': (len(reachable_peers)/basic_stats['totalUniqueIPs']*100),
+        'totalAnomalous': len_all_ns_peers,
+        'myUniquensPeers': len(ban_list_stats['my_unique'])
     }
 
     write_tex(results, no_space)
@@ -1309,10 +1486,14 @@ def save_ns_peers(identified_ns_peers):
         with open('results/identified_ns_ips.txt', 'r') as file:
             existing_ips = set(line.strip() for line in file)
     
+    logging.info(f"Identified before: {len(existing_ips)} non-standard peers.")
+    
     new_ips = [ip for ip in identified_ns_peers if ip not in existing_ips]
-
     if new_ips:
         with open('results/identified_ns_ips.txt', 'a') as file:
             file.write('\n'.join(new_ips) + '\n')
-
-    return existing_ips.update(identified_ns_peers)
+    
+    existing_ips.update(identified_ns_peers)
+    logging.info(f"Identified in all runs: {len(existing_ips)} non-standard peers.")
+    
+    return existing_ips 

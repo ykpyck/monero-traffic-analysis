@@ -73,8 +73,7 @@ def de_duplicate(peer_packets_df):
 def main():
 
     dataset_identifier = sys.argv[1]
-
-    #node = 'sfo'
+    
     for node in servers.keys():
         print(f"Processing {node} data...")
 
