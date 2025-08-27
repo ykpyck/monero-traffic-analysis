@@ -1,14 +1,13 @@
 # monero-traffic-analysis
 
 ## Convenience Script
-# Setup and Usage
 
-## Prerequisites
+### Prerequisites
 - Python 3.x
 - PCAP files for analysis: https://zenodo.org/records/16947083 (or your own capture)
 - requirements.txt
 
-## Installation Steps
+### Installation Steps
 
 1. **Load PCAP files**
    
@@ -63,10 +62,10 @@
    
    b: Open and run `main_notebook.ipynb` to check the analysis results step by step.
 
-# GeoLite2 Database
+### GeoLite2 Database
 https://github.com/P3TERX/GeoLite.mmdb?tab=readme-ov-file
 https://www.maxmind.com/en/geolite2/eula
 
-# banlist
+### Ban List
 https://gist.github.com/Rucknium/76edd249c363b9ecf2517db4fab42e88
 https://github.com/Boog900/monero-ban-list/blob/main/ban_list.txt 

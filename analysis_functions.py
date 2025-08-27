@@ -662,7 +662,14 @@ def analyze_node_connections(peer_packets_df, my_ip, default_port, threshold, mi
     return conn_df
 
 def connections(ban, threshold=90, min_tss=2):
-
+    ''' Analyze the connections and categorize them along known groups.
+    Returns:
+        list: Short lived IP addresses
+        list: Ping IP addresses
+        list: Throttled Timed Sync IP addresses
+        list: all latencies
+        DataFrame: all connections
+    '''
     ban = ban
 
     all_conns = pd.DataFrame()
@@ -707,7 +714,7 @@ def connections(ban, threshold=90, min_tss=2):
     return sus_short, sus_ping, sus_ts, conn_df['ts_latency'], all_conns
 
 # PLOT connection anomalies
-# RANDOM PLOTS
+# RANDOM PLOTS -> currently commented out in analyze_node_connections() just above the return statement
 def get_command_category(cmd, flag, source, my_ip):
     """Map commands and flags to categories"""
     if source == my_ip:
