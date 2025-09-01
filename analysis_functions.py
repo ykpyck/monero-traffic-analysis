@@ -505,7 +505,7 @@ def get_connection_info(row, my_ip, default_port):
         # Incoming: I'm responding, but connection was initiated by peer
         return 'incoming', row['source_ip'], f"{my_ip}:{default_port}<-{row['source_ip']}:{row['source_port']}"
     
-def analyze_node_connections(peer_packets_df, my_ip, default_port, threshold, min_tss):
+def analyze_node_connections(peer_packets_df, my_ip, default_port, threshold, min_tss, time_duration=660):
     all_data = peer_packets_df.copy()
     connection_info = all_data.apply(get_connection_info, axis=1, args=(my_ip, default_port))
     all_data['direction'] = [info[0] for info in connection_info]
@@ -565,11 +565,17 @@ def analyze_node_connections(peer_packets_df, my_ip, default_port, threshold, mi
 
         # calculate timed sync latency
         ts_series = pd.Series(timestamps[peer_ts_req_mask])
+        my_ts_series = pd.Series(timestamps[my_ts_req_mask])
         latency = None
         std_dev_lat = None
         var_lat = None
+        my_differences = my_ts_series.diff().dt.total_seconds().dropna()
+        my_med_lat = my_differences.median()
+        my_mean_lat = my_differences.mean()
+        my_lat = min(my_med_lat, my_mean_lat)
+        second_duration = duration / pd.Timedelta(seconds=1)
         #if not tcp_anomaly and len(ts_series) > min_tss:
-        if not tcp_anomaly and duration > min_tss:
+        if not tcp_anomaly and second_duration > min_tss and my_lat < 62: 
             differences = ts_series.diff().dt.total_seconds().dropna()
             median_lat = differences.median()
             mean_lat = differences.mean()
@@ -657,11 +663,11 @@ def analyze_node_connections(peer_packets_df, my_ip, default_port, threshold, mi
 
     conn_df['category'] = np.select(conditions, choices, default='standard_other')
 
-    #plot_random_conns(conn_df, grouped, my_ip)
+    plot_random_conns(conn_df, grouped, my_ip, time_duration)
 
     return conn_df
 
-def connections(ban, threshold=90, min_tss=2):
+def connections(ban, threshold=90, min_tss=2, time_duration=660):
     ''' Analyze the connections and categorize them along known groups.
     Returns:
         list: Short lived IP addresses
@@ -680,7 +686,7 @@ def connections(ban, threshold=90, min_tss=2):
 
         peer_packets_df = pd.read_parquet(f"data/dataframes/peer_packets_{node}_{ban}.parquet")
 
-        conn_df = analyze_node_connections(peer_packets_df, my_ip, default_port, threshold=threshold, min_tss=min_tss)
+        conn_df = analyze_node_connections(peer_packets_df, my_ip, default_port, threshold=threshold, min_tss=min_tss, time_duration=time_duration)
 
         all_conns = pd.concat([all_conns, conn_df], ignore_index=True)
 
@@ -735,7 +741,7 @@ def get_command_category(cmd, flag, source, my_ip):
 
 def setup_axis_appearance(ax, time_duration_seconds, show_ylabel=True):
     """Configure axis appearance for LaTeX paper"""
-    category_labels = ['HS', 'TS Req', 'TS Resp', 'Ping', 'HS', 'TS Req', 'TS Resp', 'Pong']
+    category_labels = ['HS', 'TS Req', 'TS Resp', 'Pong', 'HS', 'TS Req', 'TS Resp', 'Ping']
 
     ax.set_xlabel('Time (s)', fontsize=8)
     #ax.set_ylabel('Command Type', fontsize=10)
@@ -793,7 +799,7 @@ def plot_command_timeline_subplot(ax, base_commands, base_flags, base_series, ba
 
     ax.axhline(4.5, color='gray', linestyle=':')
 
-    ax.text(time_duration_seconds * 0.95, 4.7, 'My Node', 
+    ax.text(time_duration_seconds * 0.95, 4.7, 'Measurement Node', 
             ha='right', va='bottom', fontsize=8, color='red')
     
     # Add text below the line  
@@ -807,11 +813,11 @@ def plot_command_timeline_subplot(ax, base_commands, base_flags, base_series, ba
         direction = 'incoming'
     setup_axis_appearance(ax, time_duration_seconds, show_ylabel)
     
-def plot_random_conns(conn_df, grouped, my_ip):
+def plot_random_conns(conn_df, grouped, my_ip, time_duration):
     set_plt_latex_format()
-    categories_to_plot = ['ping_flooding', 'throttled_ts', 'standard_average']  # Modify this array as needed
-    max_connections_per_type = 1
-    time_duration_seconds=200 # 660
+    categories_to_plot = ['throttled_ts']#['ping_flooding', 'throttled_ts', 'standard_average']  # Modify this array as needed
+    max_connections_per_type = 5
+    time_duration_seconds=time_duration
 
     # Add randomness to peer selection
     connection_data = {}
@@ -1383,7 +1389,7 @@ def format_number(value):
    # Convert to float if it's a number
    if isinstance(value, (int, float)):
        # Round to 3 decimal places
-       rounded = round(float(value), 1)
+       rounded = round(float(value), 2)
        
        # Check if it's effectively a whole number
        if rounded == int(rounded):
@@ -1451,7 +1457,7 @@ def format_and_write_tex(ban, basic_stats, anomaly_dict, conn_df, all_latencies,
         'shortLivedConnsOne': len(conn_df[conn_df['category'] == 'short_lived_1']),
         'totalUniqueIPsShortTwo': len(anomaly_dict['Short-lived Conn']['ips']),
         'UniqueASNsShortTwo': len(anomaly_dict['Short-lived Conn']['asns']),
-        'shortLivedOneMaxIP': conn_df[conn_df['category'] == 'short_lived_1']['source_ip'].value_counts().max(),
+        'shortLivedOneMaxIP': int(conn_df[conn_df['category'] == 'short_lived_1']['source_ip'].value_counts().max()),
         'throttledTSmedianfreq': all_latencies.quantile(0.5),
         'throttledTSConns': len(conn_df[conn_df['category'] == 'throttled_ts']),
         'uniqueIPsthrottledTS': len(anomaly_dict['Throttled TS']['ips']),
