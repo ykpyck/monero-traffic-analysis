@@ -6,6 +6,7 @@
 - Python 3.x
 - PCAP files for analysis: https://zenodo.org/records/16947083 (or your own capture)
 - requirements.txt
+- TShark (Wireshark) 4.4.7 (Git commit e8a60fa2ff17)
 - time, the complete pipeline including pre-processing for all nodes in one configuration can take up to 1-2 hours
 
 ### Installation Steps
