@@ -202,8 +202,8 @@ def process_monero_tsv(input_file, output_file):
                     # Extract the basic fields
                     frame_number = fields[0]
                     timestamp_str = fields[1]
-                    src_ip = fields[2]
-                    dst_ip = fields[3]
+                    src_ip = fields[2].split(',')[0] if ',' in fields[2] else fields[2]
+                    dst_ip = fields[3].split(',')[0] if ',' in fields[3] else fields[3]
                     command = fields[4]
                     flags = fields[5]
                     tcp_segment_count = fields[6]
