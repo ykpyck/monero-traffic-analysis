@@ -524,12 +524,17 @@ def node_ids(ban):
     all_id_packets_df = all_id_packets_df.sort_values('timestamp').copy()
     
     id_anomalies = detect_ip_id_anomalies(all_id_packets_df)
-    id_anomaly_ips = id_anomalies['ip'].unique()
 
     sus_id_ips, multi_ip_clusters, id_count_dist = find_id_ip_clusters(all_id_packets_df)
-
-    intersection_ips = list(set(sus_id_ips).intersection(set(id_anomalies['ip'].unique())))
-    union_ips = list(set(sus_id_ips).union(set(id_anomalies['ip'].unique())))
+    
+    if len(id_anomalies) > 0:
+        id_anomaly_ips = id_anomalies['ip'].unique()
+        intersection_ips = list(set(sus_id_ips).intersection(set(id_anomalies['ip'].unique())))
+        union_ips = list(set(sus_id_ips).union(set(id_anomalies['ip'].unique())))
+    else:
+        id_anomaly_ips = []
+        intersection_ips = list(set(sus_id_ips))
+        union_ips = list(set(sus_id_ips))
 
     return set(sus_id_ips), id_anomaly_ips, intersection_ips, union_ips, id_count_dist, len(multi_ip_clusters)
 
