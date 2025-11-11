@@ -280,7 +280,6 @@ def process_monero_tsv(input_file, output_file):
                             end_pos = len(keys)
 
                         if section_name == 'local_peerlist_new':
-                            # Use existing peer processing logic (extract this into a function)
                             packet["local_peerlist_new"] = process_peer_list(keys, types, values, type_counters, start_pos + 1, end_pos)
                         elif section_name == 'node_data':
                             packet["node_data"] = process_node_data(keys, types, values, type_counters, start_pos + 1, end_pos)

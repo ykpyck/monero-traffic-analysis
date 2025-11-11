@@ -63,7 +63,9 @@ def stats_syntactic(ban):
     stats = {
         'totalPackets': 0,
         'totalUniqueIPs': 0,
+        'totalUniqueASs': 0,
         'totalUniqueIPsPlusPL': 0,
+        'totalUniqueASsPlusPL': 0,
         'totalPeerLists': 0,
         'sf_packets': 0
     }
@@ -100,7 +102,16 @@ def stats_syntactic(ban):
         # identify new missing required fields or falsly transmitted field
         logging.info(f"All fields for {node}: {peers_df.keys()}; {peer_packets_df.keys()}")
 
+    all_ass = set()
+    connection_ass = set()
+    for ip in all_ips:
+        tmp_as = ip_to_asn(ip) 
+        all_ass.add(tmp_as)
+        if ip in unique_connection_ips:
+            connection_ass.add(tmp_as)
 
+    stats['totalUniqueASs'] = len(connection_ass)
+    stats['totalUniqueASsPlusPL'] = len(all_ass)
     stats['totalUniqueIPs'] = len(unique_connection_ips)
     stats['totalUniqueIPsPlusPL'] = len(all_ips)
 
@@ -116,7 +127,7 @@ def stats_syntactic(ban):
 
 # Peer List Diversity
 def calc_diversity(ip_list, subnet_list):
-    if len(ip_list) < 250:
+    if len(ip_list) < 225:
         return None
     
     unique_subnets = len(set(subnet_list))
@@ -127,7 +138,7 @@ def calc_diversity(ip_list, subnet_list):
     return raw_diversity
 
 def calc_node_div(peers_df, my_ip):
-    peers_df = peers_df[peers_df['source_ip'] != my_ip].copy()
+    peers_df = peers_df.copy() #peers_df[peers_df['source_ip'] != my_ip].copy()
 
     peers_df['subnet'] = peers_df['ip'].apply(lambda ip: str(ipaddress.IPv4Network(f"{ip}/24", strict=False).network_address) + "/24")
 
@@ -159,10 +170,12 @@ def peer_list_diversity(ban, threshold=0.1):
     ban = ban
 
     pls_by_source = pd.DataFrame()
+    my_ips = []
 
     for node in servers.keys():
         default_port = "18080"
         my_ip = servers[node]
+        my_ips.append(my_ip)
 
         peers_df = pd.read_parquet(f"data/dataframes/peers_{node}_{ban}.parquet")
 
@@ -178,14 +191,25 @@ def peer_list_diversity(ban, threshold=0.1):
     except:
         set_plt_fallback_format()
         print("LaTeX not available, using fallback formatting")
+
+    mask = pls_by_source['source_ip'].isin(my_ips)
+    data_special = pls_by_source[mask]['pl_diversity_normalized']
+    data_rest = pls_by_source[~mask]['pl_diversity_normalized']
+
     plt.figure(figsize=(3.13,1), dpi=300)
-    plt.xlabel('Diversity')
+    plt.xlabel('/24 Subnet Diversity')
     plt.ylabel('Peer List Count')
-    plt.hist(pls_by_source['pl_diversity_normalized'], bins=100, log=True, color="red")
+    plt.hist([data_special, data_rest], bins=100, log=True, 
+             stacked=False, color=['blue', 'red'], alpha=0.7, 
+             label=['Measurment Nodes', 'Other'])
+    #plt.axvline(x=pls_by_source['pl_diversity_normalized'].quantile(0.5), color='green', linestyle='--')
+    plt.legend(fontsize=6, bbox_to_anchor=(0.6, 1.0), loc='upper right', 
+       title='PL sent by', title_fontsize=6,
+       alignment='left')
     plt.savefig(f'results/graphs/{ban}_loc_pl_diversity.pdf',
-               bbox_inches='tight',
-               pad_inches=0.1,
-               dpi=300)
+                bbox_inches='tight',
+                pad_inches=0.1,
+                dpi=300)
     #plt.show()
     
     sus_ips = pls_by_source[pls_by_source['pl_diversity_normalized'] < threshold]['source_ip'].unique()
@@ -200,57 +224,61 @@ def peer_list_diversity(ban, threshold=0.1):
     return sus_ips, max_announced_subnets, median_announced_subnets
 
 # Peer List Similarity
-def analyze_local_pl_similarity(peers_df, my_ip):
+def analyze_local_pl_similarity(peers_df, my_ip, batch_size=50000):
     '''Calculate the pairwise similarity for the given node's dataframe.
     Returns: 
         DataFrame: each row contains the results including source PL identifier and source IPs for both PLs
-        '''
-    peers_df = peers_df[peers_df['source_ip'] != my_ip].copy()
-
+    '''
+    #peers_df_test = peers_df[peers_df['source_ip'] != my_ip].copy()
+    peers_df = peers_df.copy()
     peers_df['subnet'] = peers_df['ip'].apply(lambda ip: str(ipaddress.IPv4Network(f"{ip}/24", strict=False).network_address) + "/24")
-    #peers_df['asn'] = peers_df['ip'].apply(ip_to_asn)
-
+    
+    pl_by_source_ip = peers_df.groupby('source_ip').agg({
+        'ip': lambda x: x.tolist(),
+        'subnet': lambda x: list(x.unique())
+    }).reset_index()
+    pl_by_source_ip.columns = ['source_ip', 'peer_ips', 'peer_subnets']
+    pl_by_source_ip['peer_count'] = pl_by_source_ip['peer_ips'].apply(len)
+    pl_by_source_ip = pl_by_source_ip[pl_by_source_ip['peer_count'] > 225]
+    
+    valid_source_ips = set(pl_by_source_ip['source_ip'])
+    peers_df = peers_df[peers_df['source_ip'].isin(valid_source_ips)]
+    
     pl_by_source = peers_df.groupby('pl_identifier').agg({
         'ip': lambda x: x.tolist(),
         'subnet': lambda x: list(x.unique()),
-        #'asn': lambda x: list(x.unique()),
         'source_ip': 'first',
-        }).reset_index()
-    
-    #pl_by_source.columns = ['source_pl', 'peer_ips', 'peer_subnets', 'peer_asns', 'source_ip']
+    }).reset_index()
     pl_by_source.columns = ['source_pl', 'peer_ips', 'peer_subnets', 'source_ip']
-
     pl_by_source['peer_count'] = pl_by_source['peer_ips'].apply(len)
-    pl_by_source = pl_by_source[pl_by_source['peer_count'] > 249]
+    pl_by_source = pl_by_source[pl_by_source['peer_count'] > 225]
 
-    pl_sets = {row['source_pl']: set(row['peer_ips']) for _, row in pl_by_source.iterrows()}
-    
-    pl_subnet_sets = {row['source_pl']: set(row['peer_subnets']) for _, row in pl_by_source.iterrows()}
-
-    #pl_asn_sets = {row['source_pl']: set(row['peer_asns']) for _, row in pl_by_source.iterrows()}
-
+    # Convert to sorted numpy arrays for memory efficiency
+    pl_arrays = {row['source_pl']: np.array(sorted(row['peer_ips'])) for _, row in pl_by_source.iterrows()}
+    pl_subnet_arrays = {row['source_pl']: np.array(sorted(row['peer_subnets'])) for _, row in pl_by_source.iterrows()}
     source_ip_lookup = pl_by_source.set_index('source_pl')['source_ip'].to_dict()
-
+    
+    # Clear original dataframes to free memory
+    del pl_by_source, peers_df, pl_by_source_ip
+    
     overlaps = []
-    for source1, source2 in combinations(pl_sets.keys(), 2):
+    pl_keys = list(pl_arrays.keys())
+    for source1, source2 in combinations(pl_keys, 2):
         ip_1 = source_ip_lookup[source1]
         ip_2 = source_ip_lookup[source2]
-
+        
         if ip_1 == ip_2:
             continue
-       
-        ip_intersection = len(pl_sets[source1] & pl_sets[source2])
-        ip_union = len(pl_sets[source1] | pl_sets[source2])
+        
+        # Use numpy for efficient set operations
+        ip_intersection = len(np.intersect1d(pl_arrays[source1], pl_arrays[source2], assume_unique=True))
+        ip_union = len(np.union1d(pl_arrays[source1], pl_arrays[source2]))
         ip_jaccard = ip_intersection / ip_union if ip_union > 0 else 0
-
-        sub_intersection = len(pl_subnet_sets[source1] & pl_subnet_sets[source2])
-        sub_union = len(pl_subnet_sets[source1] | pl_subnet_sets[source2])
+        
+        sub_intersection = len(np.intersect1d(pl_subnet_arrays[source1], pl_subnet_arrays[source2], assume_unique=True))
+        sub_union = len(np.union1d(pl_subnet_arrays[source1], pl_subnet_arrays[source2]))
         sub_jaccard = sub_intersection / sub_union if sub_union > 0 else 0
-
-        #as_intersection = len(pl_asn_sets[source1] & pl_asn_sets[source2])
-        #as_union = len(pl_asn_sets[source1] | pl_asn_sets[source2])
-        #as_jaccard = as_intersection / as_union if as_union > 0 else 0
-    
+        
         overlaps.append({
             'source1': source1, 
             'source2': source2,
@@ -262,12 +290,15 @@ def analyze_local_pl_similarity(peers_df, my_ip):
             'sub_intersection': sub_intersection, 
             'sub_union': sub_union,
             'sub_jaccard': sub_jaccard,
-            #'as_jaccard': as_jaccard
         })
+        
+        # Save to disk in batches to avoid RAM overflow
+        if len(overlaps) >= batch_size:
+            yield pd.DataFrame(overlaps)
+            overlaps = []
     
-    overlap_df = pd.DataFrame(overlaps)
-
-    return overlap_df
+    if overlaps:
+        yield pd.DataFrame(overlaps)
 
 def peer_list_similarity(ban, threshold):
     '''Measures the distribution of pairwise similarities in all nodes.
@@ -278,16 +309,20 @@ def peer_list_similarity(ban, threshold):
     ban = ban
 
     all_overlap_df = pd.DataFrame()
-
+    my_ips = []
     for node in servers.keys():
         default_port = "18080"
         my_ip = servers[node]
 
+        my_ips.append(my_ip)
+
         peers_df = pd.read_parquet(f"data/dataframes/peers_{node}_{ban}.parquet")
 
-        overlap_df = analyze_local_pl_similarity(peers_df, my_ip)
+        overlap_df = pd.concat(analyze_local_pl_similarity(peers_df, my_ip), ignore_index=True)
 
         all_overlap_df = pd.concat([all_overlap_df, overlap_df], ignore_index=True)
+
+        print(f"Node {node} done.")
     
 
     try:
@@ -296,35 +331,44 @@ def peer_list_similarity(ban, threshold):
     except:
         set_plt_fallback_format()
         print("LaTeX not available, using fallback formatting")
+
+    mask = all_overlap_df['source1_ip'].isin(my_ips) | all_overlap_df['source2_ip'].isin(my_ips)
+    data_special = all_overlap_df[mask]['ip_jaccard']
+    data_rest = all_overlap_df[~mask]['ip_jaccard']
+
     plt.figure(figsize=(3.13,1), dpi=300)
     plt.xlabel('Jaccard Similarity by IP')
     plt.ylabel('Pair Count')
-    plt.hist(all_overlap_df['ip_jaccard'], bins=100, range=(0,1), log=True, color='red')
+
+    plt.hist([data_special, data_rest], bins=100, range=(0,1), log=True, 
+             stacked=False, color=['blue', 'red'], alpha=0.7, 
+             label=['Measurment Node', 'Only Other IPs'])
+    plt.legend(fontsize=6, bbox_to_anchor=(0.94, 1.0), loc='upper right',
+               title='PL pair contains', title_fontsize=6,
+               alignment='left')
     plt.savefig(f'results/graphs/{ban}_ip_similarity.pdf',
                bbox_inches='tight',
                pad_inches=0.1,
                dpi=300)
     plt.show()
 
+    data_special = all_overlap_df[mask]['sub_jaccard']
+    data_rest = all_overlap_df[~mask]['sub_jaccard']
+
     plt.figure(figsize=(3.13,1), dpi=300)
     plt.ylabel('Pair Count')
     plt.xlabel('Jaccard Similarity by /24 Subnet')
-    plt.hist(all_overlap_df['sub_jaccard'], bins=100, range=(0,1), log=True, color='red')
+    plt.hist([data_special, data_rest], bins=100, range=(0,1), log=True, 
+             stacked=False, color=['blue', 'red'], alpha=0.5,
+             label=['Measurment Node', 'Only Other IPs'])
+    plt.legend(fontsize=6, bbox_to_anchor=(0.94, 1.0), loc='upper right',
+               title='PL pair contains', title_fontsize=6,
+               alignment='left')
     plt.savefig(f'results/graphs/{ban}_sub_similarity.pdf',
                bbox_inches='tight',
                pad_inches=0.1,
                dpi=300)
     plt.show()
-
-    #plt.figure(figsize=(3.13,1), dpi=300)
-    #plt.ylabel('Pair Count')
-    #plt.xlabel('Jaccard Similarity across ASs')
-    #plt.hist(all_overlap_df['as_jaccard'], bins=100, range=(0,1), log=True, color='red')
-    #plt.savefig(f'results/graphs/{ban}_as_similarity.pdf',
-    #           bbox_inches='tight',
-    #           pad_inches=0.1,
-    #           dpi=300)
-    #plt.show()
 
     high_overlap_df = all_overlap_df[all_overlap_df['sub_jaccard']>threshold]
 
@@ -332,7 +376,7 @@ def peer_list_similarity(ban, threshold):
 
     ip_counts = all_ips.value_counts()
 
-    frequent_ips = ip_counts[ip_counts > 4].index
+    frequent_ips = ip_counts[ip_counts > 0].index
     sus_ips = set(frequent_ips)
 
     # logging
@@ -544,7 +588,6 @@ def analyze_node_connections(peer_packets_df, my_ip, default_port, threshold, mi
         commands = np.array(conn['command'])
         monero_flags = np.array(conn['monero_flags'])
         timestamps = np.array(conn['timestamp'])
-        
 
         my_ip_mask = (source_ips == my_ip)
         peer_ip_mask = (source_ips != my_ip)
@@ -707,6 +750,7 @@ def connections(ban, threshold=90, min_tss=2, time_duration=660):
                 filtered_counts = peer_ip_counts[peer_ip_counts > 10]
                 sus_short = filtered_counts.keys()
                 logging.info(f"Violation - {c}_ten anomalies found for unique IPs: {len(sus_short)}")
+                logging.info(f"{peer_ip_counts[peer_ip_counts > 100]}")
             elif c == 'ping_flooding':
                 sus_ping = unique_ips_in_cat
                 logging.info(f"Violation - {c} anomalies found for unique IPs: {len(sus_ping)}")
@@ -741,7 +785,7 @@ def get_command_category(cmd, flag, source, my_ip):
 
 def setup_axis_appearance(ax, time_duration_seconds, show_ylabel=True):
     """Configure axis appearance for LaTeX paper"""
-    category_labels = ['HS', 'TS Req', 'TS Resp', 'Pong', 'HS', 'TS Req', 'TS Resp', 'Ping']
+    category_labels = ['HS', 'TS Req', 'TS Resp', 'Ping', 'HS', 'TS Req', 'TS Resp', 'Pong']
 
     ax.set_xlabel('Time (s)', fontsize=8)
     #ax.set_ylabel('Command Type', fontsize=10)
@@ -792,7 +836,7 @@ def plot_command_timeline_subplot(ax, base_commands, base_flags, base_series, ba
     
     #print(f"{title}: {sources_filtered[:2]} : {base_series[:1]}")
     
-    colors = ['red' if source == my_ip else 'blue' 
+    colors = ['blue' if source == my_ip else 'red' 
           for source in sources_filtered]
 
     ax.scatter(time_filtered, categories, c=colors, s=10, alpha=0.7)
@@ -800,11 +844,11 @@ def plot_command_timeline_subplot(ax, base_commands, base_flags, base_series, ba
     ax.axhline(4.5, color='gray', linestyle=':')
 
     ax.text(time_duration_seconds * 0.95, 4.7, 'Measurement Node', 
-            ha='right', va='bottom', fontsize=8, color='red')
+            ha='right', va='bottom', fontsize=8, color='blue')
     
     # Add text below the line  
     ax.text(time_duration_seconds * 0.95, 4.3, 'Peer', 
-            ha='right', va='top', fontsize=8, color='blue')
+            ha='right', va='top', fontsize=8, color='red')
     
     #ax.set_title(title, fontsize=10, pad=10, weight='bold')
     if sources_filtered[0] == my_ip:
@@ -815,8 +859,8 @@ def plot_command_timeline_subplot(ax, base_commands, base_flags, base_series, ba
     
 def plot_random_conns(conn_df, grouped, my_ip, time_duration):
     set_plt_latex_format()
-    categories_to_plot = ['throttled_ts']#['ping_flooding', 'throttled_ts', 'standard_average']  # Modify this array as needed
-    max_connections_per_type = 5
+    categories_to_plot = ['ping_flooding', 'standard_average'] #['ping_flooding', 'throttled_ts', 'standard_average']  # Modify this array as needed
+    max_connections_per_type = 2
     time_duration_seconds=time_duration
 
     # Add randomness to peer selection
@@ -1030,21 +1074,49 @@ def subnets_asn_comb(ban):
     plt.savefig(f'results/graphs/{ban}_asn_subnet_dist_conns.pdf', dpi=300)
     plt.show()
 
-    return set(high_subnet_ips), len(lion_peers), median_subnet_peers
+    return set(high_subnet_ips), lion_peers, median_subnet_peers
 
 # In-Degree Analysis
 def indegree(ban):
     ban = ban
     
     all_mentions = []
+    all_my_mentions = []
 
     for node in servers.keys():
         #peer_packets_df = pd.read_parquet(f"data/dataframes/peer_packets_{node}_{ban}.parquet")
         peers_df = pd.read_parquet(f"data/dataframes/peers_{node}_{ban}.parquet")
 
         peers_df = peers_df[peers_df['source_ip'] != servers[node]]
-
         all_mentions.extend(peers_df['ip'])
+
+    indegrees = pd.DataFrame(all_mentions)
+    indegrees.columns = ['ip']
+
+    indegree_counts = indegrees['ip'].value_counts().reset_index()
+    # Rename columns for clarity
+    indegree_counts.columns = ['ip', 'indegree']
+    indegree_distribution = indegree_counts['indegree'].value_counts().sort_index()
+
+    plt.figure(figsize=(3.13, 2))
+    plt.loglog(indegree_distribution.index, indegree_distribution.values, 'o', markersize=1)
+    plt.xlabel('Indegree')
+    plt.ylabel('Frequency')
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f'results/graphs/without_indegree.pdf')
+    plt.show()
+
+    #plt.figure(figsize=(3.13, 2))
+    #plt.loglog(range(1, len(indegree_counts)+1), indegree_counts['indegree'].values, 'o', markersize=1)
+    #plt.xlabel('Rank')
+    #plt.ylabel('Indegree')
+    ##plt.title('Indegree Distribution (log-log)')
+    #plt.grid(True, alpha=0.3)
+    #plt.tight_layout()
+    #plt.savefig(f'results/graphs/without_indegree_ranked.pdf')
+    #plt.show()
+
     
     return all_mentions
 
@@ -1193,41 +1265,38 @@ def average_time_series(series_list):
     # mean across nodes
     return sum(aligned_series) / len(aligned_series)
 
-def plot_anom_saturation(ban, total_anomaly_set):
-    
+def plot_anom_saturation(ban, total_anomaly_set, adversarial_peers):
+    set_plt_latex_format()
     incoming_series = []
     outgoing_series = []
-
-
     for node in servers.keys():
         default_port = "18080"
         my_ip = servers[node]
-
         peer_packets_df = pd.read_parquet(f"data/dataframes/peer_packets_{node}_{ban}.parquet")
         conn_df, grouped = get_conns(peer_packets_df, my_ip, default_port)
-
         events = []
         for idx, row in conn_df.iterrows():
             conn_id = row['connection_id']
             conn = grouped.get_group(conn_id)
             timestamps = conn['timestamp']
-            
             start_time = timestamps.iloc[0]
             end_time = timestamps.iloc[-1]
             direction = row['direction']
-
-            if row['peer_ip'] in total_anomaly_set:
+            
+            # Adversarial gets priority
+            if row['peer_ip'] in adversarial_peers:
+                conn_type = 'adversarial'
+            elif row['peer_ip'] in total_anomaly_set:
                 conn_type = 'anomalous'
             else:
                 conn_type = 'non-anomalous'
             
             events.append({'time': start_time, 'direction': direction, 'classification': conn_type, 'change': 1})
             events.append({'time': end_time, 'direction': direction, 'classification': conn_type, 'change': -1})
-
+        
         events_df = pd.DataFrame(events)
         events_df = events_df.sort_values('time').set_index('time')
-
-
+        
         for direction in ['incoming', 'outgoing']:
             direction_events = events_df[events_df['direction'] == direction]
             if not direction_events.empty:
@@ -1237,28 +1306,26 @@ def plot_anom_saturation(ban, total_anomaly_set):
                 )
                 resampled = pivot.resample('1s').sum().fillna(0)
                 cumulative = resampled.cumsum().clip(lower=0)
-                
                 if direction == 'incoming':
                     incoming_series.append(cumulative)
                 else:
                     outgoing_series.append(cumulative)
-
-
+        
         del peer_packets_df, conn_df 
     
     avg_incoming = average_time_series(incoming_series)
     avg_outgoing = average_time_series(outgoing_series)
-
+    
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(3.13, 3), dpi=300)
-
-    classifications = avg_incoming.columns if not avg_incoming.empty else avg_outgoing.columns
-    # colors = plt.cm.Accent(np.linspace(0, 1, len(classifications)))
+    
     color_map = {
-        'anomalous': 'red',
+        'adversarial': 'darkred',
+        'anomalous': 'yellow',
         'non-anomalous': 'gray'
     }
-
+    
     stats = {}
+    
     # plot averaged data
     for cumulative, ax, title in [(avg_incoming, ax1, 'In'), (avg_outgoing, ax2, 'Out')]:
         if not cumulative.empty:
@@ -1270,27 +1337,29 @@ def plot_anom_saturation(ban, total_anomaly_set):
             ax.set_ylabel(f'{title} Connections (Avg)')
             ax.legend(loc='upper right')
             ax.xaxis.set_major_locator(plt.MaxNLocator(nbins=2))
-        
-        # Calculate proportions
-        total_active = cumulative.sum(axis=1)
-        # Only consider time points where connections exist
-        mask = total_active > 0
-        proportions = cumulative[mask].div(total_active[mask], axis=0)
-        average_proportions = proportions.mean()
-        mean_anomalous_active = cumulative[mask]['anomalous'].mean()
-
-        stats[f'{title}_mean_anomalous_active'] = mean_anomalous_active
+            
+            # Calculate proportions
+            total_active = cumulative.sum(axis=1)
+            mask = total_active > 0
+            proportions = cumulative[mask].div(total_active[mask], axis=0)
+            average_proportions = proportions.mean()
+            
+            # Log stats for all three types
+            for conn_type in ['adversarial', 'anomalous']:
+                if conn_type in cumulative.columns:
+                    mean_active = cumulative[mask][conn_type].mean()
+                    stats[f'{title}_mean_{conn_type}_active'] = mean_active
+                    logging.info(f"Averaged absolute active {conn_type} connections: {mean_active:.3f}")
+            
+            for conn_type, prop in average_proportions.items():
+                stats[f'{title}_{conn_type}_prop'] = prop * 100
+                logging.info(f"  {conn_type}: {prop:.3f}")
     
-        logging.info(f"Averaged absolute active anomalous connections: {mean_anomalous_active:.3f}")
-        for conn_type, prop in average_proportions.items():
-            stats[f'{title}_{conn_type}_prop'] = prop * 100
-            logging.info(f"  {conn_type}: {prop:.3f}")
-
     ax2.set_xlabel('Time')
     plt.tight_layout()
     plt.savefig(f'results/graphs/{ban}_conn_saturation_averaged.pdf')
     plt.show()
-
+    
     return stats
 
 # Check which of the peers are reachable (or have been reached by us)
@@ -1430,7 +1499,8 @@ def format_and_write_tex(ban, basic_stats, anomaly_dict, conn_df, all_latencies,
     
     no_space = ['medianSubnetPeers', 'medConnCommands', 'medConnDuration', 'avgInDegree', 'medianInDegree',
                 'incomingConnSatwithout', 'outgoingConnSatwithout', 'percentageAnomNet', 'avgPeerPoisoning',
-                'outgoingConnSatwith', 'incomingConnSatwith','percentageAnomReach']
+                'outgoingConnSatwith', 'incomingConnSatwith','percentageAnomReach', 'totalUniqueASs', 'totalUniqueASsPlusPL',
+                'In_mean_adversarial_active', 'Out_mean_adversarial_active']
 
     two_decimal = ['percentageAnomNet']
 
@@ -1439,6 +1509,8 @@ def format_and_write_tex(ban, basic_stats, anomaly_dict, conn_df, all_latencies,
         'totalUniqueIPs': basic_stats['totalUniqueIPs'],
         'totalUniqueIPsPlusPL': basic_stats['totalUniqueIPsPlusPL'],
         'totalPeerLists': basic_stats['totalPeerLists'],
+        'totalUniqueASs': basic_stats['totalUniqueASs'],
+        'totalUniqueASsPlusPL': basic_stats['totalUniqueASsPlusPL'],
         'totalUniqueIPssupportflag': len(anomaly_dict['SF Omission']['ips']), 
         'UniqueASNsSupportFlag' : len(anomaly_dict['SF Omission']['asns']),
         'SFRpackets': basic_stats['sf_packets'],
@@ -1482,6 +1554,10 @@ def format_and_write_tex(ban, basic_stats, anomaly_dict, conn_df, all_latencies,
         'LionLinkPeers': lion_peers,
         f'incomingConnSat{ban}': saturation_stats['In_anomalous_prop'],
         f'outgoingConnSat{ban}': saturation_stats['Out_anomalous_prop'],
+        f'incomingConnSatAdv{ban}': saturation_stats['In_adversarial_prop'],
+        f'outgoingConnSatAdv{ban}': saturation_stats['Out_adversarial_prop'],
+        f'totalincomingConnSatAdv{ban}': saturation_stats['In_mean_adversarial_active'],
+        f'totaloutgoingConnSatAdv{ban}': saturation_stats['Out_mean_adversarial_active'],
         f'totalincomingConnSat{ban}': saturation_stats['In_mean_anomalous_active'],
         f'totaloutgoingConnSat{ban}': saturation_stats['Out_mean_anomalous_active'],
         'avgPeerPoisoning': (np.mean(pl_poison)*100),
